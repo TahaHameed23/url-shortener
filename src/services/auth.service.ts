@@ -128,6 +128,15 @@ async function findUserByEmail(
         .first<UserRow>();
 }
 
+export async function isUserEmailTaken(
+    db: D1DatabaseLike,
+    email: string,
+): Promise<boolean> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await findUserByEmail(db, normalizedEmail);
+    return user !== null;
+}
+
 async function findUserById(
     db: D1DatabaseLike,
     userId: string,

@@ -11,6 +11,53 @@ import {
     setCachedLink,
     type CachedLinkRecord,
 } from "../kv/kv";
+
+type LinkContext = {
+    db: D1DatabaseLike;
+    slug: string;
+    link: CachedLinkRecord;
+};
+
+function requireDatabase(c: any): D1DatabaseLike | Response {
+    const db = c.env.DB as D1DatabaseLike | undefined;
+
+    if (!db) {
+        return c.json({ error: "Database unavailable" }, 500);
+    }
+
+    return db;
+}
+
+async function resolveLinkContext(c: any): Promise<LinkContext | Response> {
+    const slug = c.req.param("slug");
+    const db = requireDatabase(c);
+
+    if (db instanceof Response) {
+        return db;
+    }
+
+    const cacheEnabled = isKvCacheEnabled(c.env.KV_CACHE_ENABLED);
+    const cachedLink = cacheEnabled
+        ? await getCachedLinkBySlug(c.env.KV, slug)
+        : null;
+
+    if (cachedLink) {
+        return { db, slug, link: cachedLink };
+    }
+
+    const storedLink = await getLinkBySlug(db, slug);
+
+    if (!storedLink) {
+        return c.json({ error: "Link not found" }, 404);
+    }
+
+    if (cacheEnabled) {
+        await setCachedLink(c.env.KV, storedLink);
+    }
+
+    return { db, slug, link: storedLink };
+}
+
 export const createLink = async (c: any) => {
     const body = c.get("body") as { longUrl?: string } | undefined;
     const auth = c.get("auth") as { userId?: string } | undefined;
@@ -19,10 +66,10 @@ export const createLink = async (c: any) => {
         return c.json({ error: "Missing longUrl" }, 400);
     }
 
-    const db = c.env.DB as D1DatabaseLike | undefined;
+    const db = requireDatabase(c);
 
-    if (!db) {
-        return c.json({ error: "Database unavailable" }, 500);
+    if (db instanceof Response) {
+        return db;
     }
 
     try {
@@ -48,46 +95,15 @@ export const createLink = async (c: any) => {
     }
 };
 
-const loadLink = async (c: any) => {
-    const slug = c.req.param("slug");
-    const db = c.env.DB as D1DatabaseLike | undefined;
-
-    if (!db) {
-        return { error: c.json({ error: "Database unavailable" }, 500) };
-    }
-
-    const link = await getLinkBySlug(db, slug);
-
-    if (!link) {
-        return { error: c.json({ error: "Link not found" }, 404) };
-    }
-
-    return { db, link, slug };
-};
-
 export const getLink = async (c: any) => {
     try {
-        const result = await loadLink(c);
+        const context = await resolveLinkContext(c);
 
-        if ("error" in result) {
-            return result.error;
+        if (context instanceof Response) {
+            return context;
         }
 
-        const cacheEnabled = isKvCacheEnabled(c.env.KV_CACHE_ENABLED);
-
-        const cached = cacheEnabled
-            ? await getCachedLinkBySlug(c.env.KV, result.slug)
-            : null;
-
-        if (cached) {
-            return c.json(cached, 200);
-        }
-
-        if (cacheEnabled) {
-            await setCachedLink(c.env.KV, result.link as CachedLinkRecord);
-        }
-
-        return c.json(result.link, 200);
+        return c.json(context.link, 200);
     } catch {
         return c.json({ error: "Failed to fetch link" }, 500);
     }
@@ -95,30 +111,14 @@ export const getLink = async (c: any) => {
 
 export const redirectLink = async (c: any) => {
     try {
-        const result = await loadLink(c);
+        const context = await resolveLinkContext(c);
 
-        if ("error" in result) {
-            return result.error;
+        if (context instanceof Response) {
+            return context;
         }
 
-        const cacheEnabled = isKvCacheEnabled(c.env.KV_CACHE_ENABLED);
-
-        const cached = cacheEnabled
-            ? await getCachedLinkBySlug(c.env.KV, result.slug)
-            : null;
-
-        if (cached) {
-            await incrementLinkClicks(result.db, result.slug);
-            return c.redirect(cached.longUrl, 302);
-        }
-
-        await incrementLinkClicks(result.db, result.slug);
-
-        if (cacheEnabled) {
-            await setCachedLink(c.env.KV, result.link as CachedLinkRecord);
-        }
-
-        return c.redirect(result.link.longUrl, 302);
+        await incrementLinkClicks(context.db, context.slug);
+        return c.redirect(context.link.longUrl, 302);
     } catch {
         return c.json({ error: "Failed to fetch link" }, 500);
     }

@@ -2,13 +2,6 @@ import { createMiddleware } from "hono/factory";
 import { verifyAuthToken } from "../services/auth.service";
 
 export const authMiddleware = createMiddleware(async (c, next) => {
-    const path = new URL(c.req.url).pathname;
-
-    if (path === "/api/v1/auth/login" || path === "/api/v1/auth/register") {
-        await next();
-        return;
-    }
-
     const authorization = c.req.header("authorization");
 
     if (!authorization?.startsWith("Bearer ")) {
