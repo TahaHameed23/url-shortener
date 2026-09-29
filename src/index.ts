@@ -11,14 +11,20 @@ app.route("/api/v1", linkRouter);
 
 app.route("/", publicRouter);
 
-app.get("*", (c) => {
+app.get("*", async (c) => {
     const pathname = new URL(c.req.url).pathname;
 
     if (pathname.startsWith("/api/")) {
         return c.notFound();
     }
 
-    return c.env.ASSETS.fetch(c.req.raw);
+    const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
+    if (assetResponse.status !== 404) {
+        return assetResponse;
+    }
+
+    const indexUrl = new URL("/", c.req.url);
+    return c.env.ASSETS.fetch(new Request(indexUrl, c.req.raw));
 });
 
 export default app;
