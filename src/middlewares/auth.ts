@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { verifyAuthToken } from "../services/auth.service";
+import { getAuthCookie } from "../services/auth-cookie";
 
 export const authMiddleware = createMiddleware(async (c, next) => {
     const path = new URL(c.req.url).pathname;
@@ -9,13 +10,11 @@ export const authMiddleware = createMiddleware(async (c, next) => {
         return;
     }
 
-    const authorization = c.req.header("authorization");
+    const token = getAuthCookie(c.req.raw);
 
-    if (!authorization?.startsWith("Bearer ")) {
-        return c.json({ error: "Missing bearer token" }, 401);
+    if (!token) {
+        return c.json({ error: "Missing authentication cookie" }, 401);
     }
-
-    const token = authorization.slice("Bearer ".length).trim();
     const secret = c.env.AUTH_SECRET;
 
     if (!secret) {
@@ -25,7 +24,10 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     const auth = verifyAuthToken(token, secret);
 
     if (!auth) {
-        return c.json({ error: "Invalid or expired bearer token" }, 401);
+        return c.json(
+            { error: "Invalid or expired authentication cookie" },
+            401,
+        );
     }
 
     c.set("auth", auth);
