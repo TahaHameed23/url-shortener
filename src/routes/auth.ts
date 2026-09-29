@@ -6,6 +6,7 @@ import {
     loginUser,
     registerUser,
 } from "../services/auth.service";
+import { clearAuthCookie, createAuthCookie } from "../services/auth-cookie";
 
 const authRouter = new Hono<{ Bindings: CloudflareBindings }>();
 
@@ -51,12 +52,11 @@ authRouter.post("/auth/register", async (c: any) => {
 
         const { user } = await registerUser(db, email, body.password);
         const token = createAuthToken(user, secret);
+        c.header("Set-Cookie", createAuthCookie(c.req.url, token));
 
         return c.json(
             {
                 user,
-                tokenType: "Bearer",
-                accessToken: token,
             },
             201,
         );
@@ -97,11 +97,17 @@ authRouter.post("/auth/login", async (c: any) => {
         }
 
         const token = createAuthToken(user, secret);
+        c.header("Set-Cookie", createAuthCookie(c.req.url, token));
 
-        return c.json({ user, tokenType: "Bearer", accessToken: token }, 200);
+        return c.json({ user }, 200);
     } catch {
         return c.json({ error: "Failed to login user" }, 500);
     }
+});
+
+authRouter.post("/auth/logout", (c: any) => {
+    c.header("Set-Cookie", clearAuthCookie(c.req.url));
+    return c.json({ ok: true }, 200);
 });
 
 authRouter.get("/auth/me", authMiddleware, async (c: any) => {
