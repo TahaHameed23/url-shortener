@@ -11,6 +11,8 @@ import {
     setCachedLink,
     type CachedLinkRecord,
 } from "../kv/kv";
+import { getSafeExternalUrl } from "./safe-url";
+
 export const createLink = async (c: any) => {
     const body = c.get("body") as { longUrl?: string } | undefined;
     const auth = c.get("auth") as { userId?: string } | undefined;
@@ -106,10 +108,17 @@ export const redirectLink = async (c: any) => {
         const cached = cacheEnabled
             ? await getCachedLinkBySlug(c.env.KV, result.slug)
             : null;
+        const destination = getSafeExternalUrl(
+            cached?.longUrl ?? result.link.longUrl,
+        );
+
+        if (!destination) {
+            return c.json({ error: "Link destination is invalid" }, 422);
+        }
 
         if (cached) {
             await incrementLinkClicks(result.db, result.slug);
-            return c.redirect(cached.longUrl, 302);
+            return c.redirect(destination, 302);
         }
 
         await incrementLinkClicks(result.db, result.slug);
@@ -118,7 +127,7 @@ export const redirectLink = async (c: any) => {
             await setCachedLink(c.env.KV, result.link as CachedLinkRecord);
         }
 
-        return c.redirect(result.link.longUrl, 302);
+        return c.redirect(destination, 302);
     } catch {
         return c.json({ error: "Failed to fetch link" }, 500);
     }
