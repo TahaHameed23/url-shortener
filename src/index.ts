@@ -3,8 +3,16 @@ import authRouter from "./routes/auth";
 import linkRouter from "./routes/links";
 import publicRouter from "./routes/public";
 import { csrfMiddleware } from "./middlewares/csrf";
+import { apiAccessMiddleware } from "./middlewares/api-access";
 const app = new Hono<{ Bindings: CloudflareBindings }>();
 
+app.use("*", async (c, next) => {
+    c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("Referrer-Policy", "same-origin");
+    await next();
+});
+app.use("/api/*", apiAccessMiddleware);
 app.use("/api/*", csrfMiddleware);
 app.route("/api/v1", authRouter);
 app.route("/api/v1", linkRouter);

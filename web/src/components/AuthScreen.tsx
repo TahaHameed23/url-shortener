@@ -28,6 +28,15 @@ export function AuthScreen({
         event.preventDefault();
         setError("");
 
+        if (
+            window.location.protocol !== "https:" &&
+            window.location.hostname !== "localhost" &&
+            window.location.hostname !== "127.0.0.1"
+        ) {
+            setError("Sign in and registration require a secure HTTPS connection.");
+            return;
+        }
+
         if (register && password !== confirm) {
             setError("Passwords do not match.");
             return;
