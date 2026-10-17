@@ -5,8 +5,7 @@ import { createLink, getLink } from "../services/link.service";
 import { validateUrl } from "../middlewares/validate";
 const linkRouter = new Hono();
 
-linkRouter.use("/links/*", authMiddleware);
-linkRouter.use("/links", authMiddleware);
+linkRouter.use("*", authMiddleware);
 
 linkRouter.post("/links", validateUrl, createLink);
 linkRouter.get("/links/:slug", getLink);

@@ -31,7 +31,11 @@ export const createLink = async (c: any) => {
         const cacheEnabled = isKvCacheEnabled(c.env.KV_CACHE_ENABLED);
 
         const cachedByLongUrl = cacheEnabled
-            ? await getCachedLinkByLongUrl(c.env.KV, body.longUrl)
+                        ? await getCachedLinkByLongUrl(
+                                    c.env.KV,
+                                    body.longUrl,
+                                    auth?.userId ?? "anonymous",
+                            )
             : null;
 
         if (cachedByLongUrl) {
@@ -73,6 +77,11 @@ export const getLink = async (c: any) => {
 
         if ("error" in result) {
             return result.error;
+        }
+
+        const auth = c.get("auth") as { userId?: string } | undefined;
+        if (!auth?.userId || result.link.createdBy !== auth.userId) {
+            return c.json({ error: "Link not found" }, 404);
         }
 
         const cacheEnabled = isKvCacheEnabled(c.env.KV_CACHE_ENABLED);

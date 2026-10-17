@@ -21,8 +21,8 @@ export function slugCacheKey(slug: string): string {
     return `${LINK_BY_SLUG_PREFIX}${slug}`;
 }
 
-export function longUrlCacheKey(longUrl: string): string {
-    return `${LINK_BY_LONG_URL_PREFIX}${encodeCacheKey(longUrl)}`;
+export function longUrlCacheKey(longUrl: string, ownerId: string): string {
+    return `${LINK_BY_LONG_URL_PREFIX}${ownerId}:${encodeCacheKey(longUrl)}`;
 }
 
 export async function getCachedLinkBySlug(
@@ -39,12 +39,13 @@ export async function getCachedLinkBySlug(
 export async function getCachedLinkByLongUrl(
     kv: KVNamespace | undefined,
     longUrl: string,
+    ownerId: string,
 ): Promise<CachedLinkRecord | null> {
     if (!kv) {
         return null;
     }
 
-    return kv.get<CachedLinkRecord>(longUrlCacheKey(longUrl), "json");
+    return kv.get<CachedLinkRecord>(longUrlCacheKey(longUrl, ownerId), "json");
 }
 
 export async function setCachedLink(
@@ -62,7 +63,7 @@ export async function setCachedLink(
         kv.put(slugCacheKey(link.shortUrl), value, {
             expirationTtl: ttlSeconds,
         }),
-        kv.put(longUrlCacheKey(link.longUrl), value, {
+        kv.put(longUrlCacheKey(link.longUrl, link.createdBy ?? "anonymous"), value, {
             expirationTtl: ttlSeconds,
         }),
     ]);
