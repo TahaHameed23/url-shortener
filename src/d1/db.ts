@@ -24,6 +24,7 @@ interface LinkRow {
     id: string;
     slug: string;
     original_url: string;
+    created_by: string | null;
 }
 
 async function shortUrlExists(
@@ -43,7 +44,7 @@ export async function getLinkBySlug(
 ): Promise<StoredLink | null> {
     const row = await db
         .prepare(
-            "SELECT id, slug, original_url FROM links WHERE slug = ? LIMIT 1",
+            "SELECT id, slug, original_url, created_by FROM links WHERE slug = ? LIMIT 1",
         )
         .bind(slug)
         .first<LinkRow>();
@@ -56,6 +57,7 @@ export async function getLinkBySlug(
         id: row.id,
         shortUrl: row.slug,
         longUrl: row.original_url,
+        createdBy: row.created_by ?? undefined,
     };
 }
 
