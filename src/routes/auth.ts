@@ -1,18 +1,31 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middlewares/auth";
 import {
-    createAuthToken,
+    createTokenPair,
+    deleteUserById,
     getUserById,
     loginUser,
     registerUser,
+    revokeRefreshToken,
+    rotateTokenPair,
 } from "../services/auth.service";
-import { clearAuthCookie, createAuthCookie } from "../services/auth-cookie";
+import {
+    clearAuthCookies,
+    createAuthCookies,
+    REFRESH_COOKIE_NAME,
+    getCookie,
+} from "../services/auth-cookie";
+import { secureAuthMiddleware } from "../middlewares/secure-auth";
 
 const authRouter = new Hono<{ Bindings: CloudflareBindings }>();
 
+authRouter.use("/auth/register", secureAuthMiddleware);
+authRouter.use("/auth/login", secureAuthMiddleware);
+authRouter.use("/auth/refresh", secureAuthMiddleware);
+
 authRouter.post("/auth/register", async (c: any) => {
     const db = c.env.DB;
-    const secret = c.env.AUTH_SECRET;
+    const secret = c.env.AUTH_SECRET ?? c.env.API_SECRET;
 
     if (!secret) {
         return c.json({ error: "Auth secret not configured" }, 500);
@@ -22,6 +35,7 @@ authRouter.post("/auth/register", async (c: any) => {
         return c.json({ error: "Database unavailable" }, 500);
     }
 
+    let createdUserId: string | undefined;
     try {
         const body = (await c.req.json()) as {
             email?: unknown;
@@ -51,8 +65,11 @@ authRouter.post("/auth/register", async (c: any) => {
         }
 
         const { user } = await registerUser(db, email, body.password);
-        const token = createAuthToken(user, secret);
-        c.header("Set-Cookie", createAuthCookie(c.req.url, token));
+        createdUserId = user.id;
+        const tokens = await createTokenPair(db, user, secret);
+        for (const cookie of createAuthCookies(c.req.url, tokens.accessToken, tokens.refreshToken)) {
+            c.header("Set-Cookie", cookie, { append: true });
+        }
 
         return c.json(
             {
@@ -61,13 +78,16 @@ authRouter.post("/auth/register", async (c: any) => {
             201,
         );
     } catch {
+        if (createdUserId) {
+            await deleteUserById(db, createdUserId);
+        }
         return c.json({ error: "Failed to register user" }, 500);
     }
 });
 
 authRouter.post("/auth/login", async (c: any) => {
     const db = c.env.DB;
-    const secret = c.env.AUTH_SECRET;
+    const secret = c.env.AUTH_SECRET ?? c.env.API_SECRET;
 
     if (!secret) {
         return c.json({ error: "Auth secret not configured" }, 500);
@@ -96,8 +116,10 @@ authRouter.post("/auth/login", async (c: any) => {
             return c.json({ error: "Invalid credentials" }, 401);
         }
 
-        const token = createAuthToken(user, secret);
-        c.header("Set-Cookie", createAuthCookie(c.req.url, token));
+        const tokens = await createTokenPair(db, user, secret);
+        for (const cookie of createAuthCookies(c.req.url, tokens.accessToken, tokens.refreshToken)) {
+            c.header("Set-Cookie", cookie, { append: true });
+        }
 
         return c.json({ user }, 200);
     } catch {
@@ -105,8 +127,34 @@ authRouter.post("/auth/login", async (c: any) => {
     }
 });
 
-authRouter.post("/auth/logout", (c: any) => {
-    c.header("Set-Cookie", clearAuthCookie(c.req.url));
+authRouter.post("/auth/logout", async (c: any) => {
+    const refreshToken = getCookie(c.req.raw, REFRESH_COOKIE_NAME);
+    if (refreshToken && c.env.DB) {
+        await revokeRefreshToken(c.env.DB, refreshToken);
+    }
+    for (const cookie of clearAuthCookies(c.req.url)) {
+        c.header("Set-Cookie", cookie, { append: true });
+    }
+    return c.json({ ok: true }, 200);
+});
+
+authRouter.post("/auth/refresh", async (c: any) => {
+    const secret = c.env.AUTH_SECRET ?? c.env.API_SECRET;
+    const db = c.env.DB;
+    const refreshToken = getCookie(c.req.raw, REFRESH_COOKIE_NAME);
+
+    if (!secret || !db || !refreshToken) {
+        return c.json({ error: "Invalid refresh token" }, 401);
+    }
+
+    const tokens = await rotateTokenPair(db, refreshToken, secret);
+    if (!tokens) {
+        return c.json({ error: "Invalid or expired refresh token" }, 401);
+    }
+
+    for (const cookie of createAuthCookies(c.req.url, tokens.accessToken, tokens.refreshToken)) {
+        c.header("Set-Cookie", cookie, { append: true });
+    }
     return c.json({ ok: true }, 200);
 });
 

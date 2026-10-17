@@ -1,21 +1,25 @@
 import { createMiddleware } from "hono/factory";
 import { verifyAuthToken } from "../services/auth.service";
-import { getAuthCookie } from "../services/auth-cookie";
+import { ACCESS_COOKIE_NAME, getCookie } from "../services/auth-cookie";
 
 export const authMiddleware = createMiddleware(async (c, next) => {
     const path = new URL(c.req.url).pathname;
 
-    if (path === "/api/v1/auth/login" || path === "/api/v1/auth/register") {
+    if (
+        path === "/api/v1/auth/login" ||
+        path === "/api/v1/auth/register" ||
+        path === "/api/v1/auth/refresh"
+    ) {
         await next();
         return;
     }
 
-    const token = getAuthCookie(c.req.raw);
+    const token = getCookie(c.req.raw, ACCESS_COOKIE_NAME);
 
     if (!token) {
-        return c.json({ error: "Missing authentication cookie" }, 401);
+        return c.json({ error: "Missing access token" }, 401);
     }
-    const secret = c.env.AUTH_SECRET;
+    const secret = c.env.AUTH_SECRET ?? c.env.API_SECRET;
 
     if (!secret) {
         return c.json({ error: "Auth secret not configured" }, 500);
@@ -25,7 +29,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 
     if (!auth) {
         return c.json(
-            { error: "Invalid or expired authentication cookie" },
+            { error: "Invalid or expired access token" },
             401,
         );
     }
