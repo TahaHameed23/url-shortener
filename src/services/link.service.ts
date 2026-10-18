@@ -2,23 +2,30 @@ import {
     createUniqueLink,
     getLinkBySlug,
     incrementLinkClicks,
+    listLinksByUser,
     type D1DatabaseLike,
+    type StoredLink,
 } from "../d1/db";
 import {
     isKvCacheEnabled,
-    getCachedLinkByLongUrl,
     getCachedLinkBySlug,
+    deleteCachedLink,
     setCachedLink,
     type CachedLinkRecord,
 } from "../kv/kv";
 import { getSafeExternalUrl } from "./safe-url";
 
+function publicLink(link: StoredLink | CachedLinkRecord) {
+    const { createdBy: _createdBy, ...result } = link;
+    return result;
+}
+
 export const createLink = async (c: any) => {
-    const body = c.get("body") as { longUrl?: string } | undefined;
+    const body = c.get("body") as { destinationUrl?: string } | undefined;
     const auth = c.get("auth") as { userId?: string } | undefined;
 
-    if (!body?.longUrl) {
-        return c.json({ error: "Missing longUrl" }, 400);
+    if (!body?.destinationUrl) {
+        return c.json({ error: "Missing destinationUrl" }, 400);
     }
 
     const db = c.env.DB as D1DatabaseLike | undefined;
@@ -30,27 +37,41 @@ export const createLink = async (c: any) => {
     try {
         const cacheEnabled = isKvCacheEnabled(c.env.KV_CACHE_ENABLED);
 
-        const cachedByLongUrl = cacheEnabled
-                        ? await getCachedLinkByLongUrl(
-                                    c.env.KV,
-                                    body.longUrl,
-                                    auth?.userId ?? "anonymous",
-                            )
-            : null;
-
-        if (cachedByLongUrl) {
-            return c.json(cachedByLongUrl, 200);
-        }
-
-        const link = await createUniqueLink(db, body.longUrl, auth?.userId);
+        const link = await createUniqueLink(db, body.destinationUrl, auth?.userId);
 
         if (cacheEnabled) {
             await setCachedLink(c.env.KV, link);
         }
 
-        return c.json(link, 201);
+        return c.json(publicLink(link), 201);
     } catch {
         return c.json({ error: "Failed to create link" }, 500);
+    }
+};
+
+export const listLinks = async (c: any) => {
+    const auth = c.get("auth") as { userId?: string } | undefined;
+    const db = c.env.DB as D1DatabaseLike | undefined;
+
+    if (!auth?.userId) {
+        return c.json({ error: "Unauthorized" }, 401);
+    }
+    if (!db) {
+        return c.json({ error: "Database unavailable" }, 500);
+    }
+
+    try {
+        const links = await listLinksByUser(db, auth.userId);
+        return c.json(
+            {
+                links: links.map(publicLink),
+                total: links.length,
+                nextCursor: null,
+            },
+            200,
+        );
+    } catch {
+        return c.json({ error: "Failed to fetch links" }, 500);
     }
 };
 
@@ -91,16 +112,49 @@ export const getLink = async (c: any) => {
             : null;
 
         if (cached) {
-            return c.json(cached, 200);
+            return c.json(publicLink(cached), 200);
         }
 
         if (cacheEnabled) {
             await setCachedLink(c.env.KV, result.link as CachedLinkRecord);
         }
 
-        return c.json(result.link, 200);
+        return c.json(publicLink(result.link), 200);
     } catch {
         return c.json({ error: "Failed to fetch link" }, 500);
+    }
+};
+
+export const deleteLink = async (c: any) => {
+    try {
+        const result = await loadLink(c);
+
+        if ("error" in result) {
+            return result.error;
+        }
+
+        const auth = c.get("auth") as { userId?: string } | undefined;
+        if (!auth?.userId || result.link.createdBy !== auth.userId) {
+            return c.json({ error: "Link not found" }, 404);
+        }
+
+        const deleted = await result.db
+            .prepare("DELETE FROM links WHERE slug = ? AND created_by = ?")
+            .bind(result.slug, auth.userId)
+            .run();
+        const changes = (deleted as { meta?: { changes?: number } }).meta?.changes;
+
+        if (changes !== undefined && changes !== 1) {
+            return c.json({ error: "Link not found" }, 404);
+        }
+
+        if (isKvCacheEnabled(c.env.KV_CACHE_ENABLED)) {
+            await deleteCachedLink(c.env.KV, result.link as CachedLinkRecord);
+        }
+
+        return c.json({ ok: true }, 200);
+    } catch {
+        return c.json({ error: "Failed to delete link" }, 500);
     }
 };
 
@@ -118,7 +172,7 @@ export const redirectLink = async (c: any) => {
             ? await getCachedLinkBySlug(c.env.KV, result.slug)
             : null;
         const destination = getSafeExternalUrl(
-            cached?.longUrl ?? result.link.longUrl,
+            cached?.destinationUrl ?? result.link.destinationUrl,
         );
 
         if (!destination) {

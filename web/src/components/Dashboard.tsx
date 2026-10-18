@@ -1,27 +1,32 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
     ArrowUpRight,
     BarChart3,
     Check,
     Clipboard,
+    Trash2,
     FileSearch,
     Link2,
-    MoreHorizontal,
     Search,
-    Sparkles,
 } from "lucide-react";
 import { api, shortUrl } from "../lib/urlz";
 import { LinkRecord, User } from "../types";
 
 export function Dashboard({
     user,
-    recent,
-    onAddRecent,
+    links,
+    loading,
+    loadError,
+    onAddLink,
+    onRemoveLink,
     onInspect,
 }: {
     user: User;
-    recent: LinkRecord[];
-    onAddRecent: (link: LinkRecord) => void;
+    links: LinkRecord[];
+    loading: boolean;
+    loadError: string;
+    onAddLink: (link: LinkRecord) => void;
+    onRemoveLink: (slug: string) => void;
     onInspect: () => void;
 }) {
     const [url, setUrl] = useState("");
@@ -38,10 +43,10 @@ export function Dashboard({
         try {
             const link = await api<LinkRecord>("/api/v1/links", {
                 method: "POST",
-                body: JSON.stringify({ longUrl: url }),
+                body: JSON.stringify({ destinationUrl: url }),
             });
             setResult(link);
-            onAddRecent(link);
+            onAddLink(link);
             setUrl("");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Unable to shorten that URL.");
@@ -50,17 +55,18 @@ export function Dashboard({
         }
     };
 
-    const clicks = recent.length * 41;
+    const totalClicks = useMemo(
+        () => links.reduce((total, link) => total + link.clicks, 0),
+        [links],
+    );
 
     return (
         <div className="fade-in">
             <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <p className="mb-2 text-sm font-medium text-[#667085]">Tuesday, September 29, 2026</p>
                     <h1 className="font-display text-3xl font-bold tracking-[-.05em] text-[#172033]">
-                        Good morning, {user.email.split("@")[0]}
+                        Good morning, {user.name || user.email.split("@")[0]}
                     </h1>
-                    <p className="mt-2 text-sm text-[#667085]">Here is what is happening with your links today.</p>
                 </div>
                 <button className="secondary-button" onClick={onInspect}>
                     <FileSearch size={16} /> Inspect a link
@@ -96,12 +102,16 @@ export function Dashboard({
             </section>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
-                <Metric icon={<Link2 size={18} />} label="Total links" value={String(recent.length).padStart(2, "0")} trend="All time" />
-                <Metric icon={<BarChart3 size={18} />} label="Total clicks" value={clicks.toLocaleString()} trend="Across your links" />
-                <Metric icon={<Sparkles size={18} />} label="This month" value={recent.length ? "Active" : "--"} trend="Link activity" />
+                <Metric icon={<Link2 size={18} />} label="Total links" value={String(links.length)} trend="All time" />
+                <Metric icon={<BarChart3 size={18} />} label="Total clicks" value={totalClicks.toLocaleString()} trend="Across your links" />
             </div>
 
-            <RecentLinks links={recent} />
+            <RecentLinks
+                links={links}
+                loading={loading}
+                loadError={loadError}
+                onRemove={onRemoveLink}
+            />
         </div>
     );
 }
@@ -147,12 +157,37 @@ function ResultBanner({ link }: { link: LinkRecord }) {
     );
 }
 
-function RecentLinks({ links }: { links: LinkRecord[] }) {
+function RecentLinks({
+    links,
+    loading,
+    loadError,
+    onRemove,
+}: {
+    links: LinkRecord[];
+    loading: boolean;
+    loadError: string;
+    onRemove: (slug: string) => void;
+}) {
     const [query, setQuery] = useState("");
     const filtered = useMemo(
-        () => links.filter((link) => `${link.shortUrl} ${link.longUrl}`.toLowerCase().includes(query.toLowerCase())),
+        () => links.filter((link) => `${link.slug} ${link.destinationUrl}`.toLowerCase().includes(query.toLowerCase())),
         [links, query],
     );
+
+    const handleDelete = useCallback(async (link: LinkRecord) => {
+        if (!window.confirm("Delete this short link?")) {
+            return;
+        }
+
+        try {
+            await api(`/api/v1/links/${encodeURIComponent(link.slug)}`, {
+                method: "DELETE",
+            });
+            onRemove(link.slug);
+        } catch {
+            window.alert("Unable to delete this link.");
+        }
+    }, [onRemove]);
 
     return (
         <section className="soft-shadow mt-7 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
@@ -182,17 +217,25 @@ function RecentLinks({ links }: { links: LinkRecord[] }) {
                 </div>
             </div>
 
-            {filtered.length ? (
+            {loading ? (
+                <div className="px-6 py-12 text-center text-sm text-[#98a2b3]">Loading links...</div>
+            ) : loadError ? (
+                <div className="px-6 py-12 text-center text-sm text-[#c92a2a]">{loadError}</div>
+            ) : filtered.length ? (
                 filtered.map((link, index) => (
                     <div className="table-row" key={`${link.id}-${index}`}>
                         <a className="truncate-line font-semibold text-[#1769e0] hover:underline" href={shortUrl(link)} target="_blank" rel="noreferrer">
                             {shortUrl(link).replace(/^https?:\/\//, "")}
                         </a>
-                        <span className="truncate-line text-[#667085]">{link.longUrl}</span>
-                        <span className="text-[#344054]">{index * 17 + 12}</span>
-                        <span className="text-[#667085]">Just now</span>
-                        <button className="grid h-8 w-8 place-items-center rounded-md text-[#98a2b3] hover:bg-[#f2f4f7]" aria-label="More actions">
-                            <MoreHorizontal size={17} />
+                        <span className="truncate-line text-[#667085]">{link.destinationUrl}</span>
+                        <span className="text-[#344054]">{link.clicks}</span>
+                        <span className="text-[#667085]">{formatDate(link.createdAt)}</span>
+                        <button
+                            className="grid h-8 w-8 place-items-center rounded-md text-[#98a2b3] hover:bg-[#fff1f1] hover:text-[#c92a2a]"
+                            aria-label={`Delete ${link.slug}`}
+                            onClick={() => handleDelete(link)}
+                        >
+                            <Trash2 size={16} />
                         </button>
                     </div>
                 ))
@@ -205,4 +248,13 @@ function RecentLinks({ links }: { links: LinkRecord[] }) {
             </div>
         </section>
     );
+}
+
+function formatDate(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+        ? "Unknown"
+        : new Intl.DateTimeFormat(undefined, {
+              dateStyle: "medium",
+          }).format(date);
 }

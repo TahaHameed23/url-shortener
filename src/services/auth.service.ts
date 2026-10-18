@@ -12,6 +12,7 @@ const SCRYPT_PARAMS = {
 };
 type UserRow = {
     id: string;
+    name: string;
     email: string;
     password_hash: string | null;
 };
@@ -193,7 +194,7 @@ async function findUserByEmail(
 ): Promise<UserRow | null> {
     return db
         .prepare(
-            "SELECT id, email, password_hash FROM users WHERE email = ? LIMIT 1",
+            "SELECT id, name, email, password_hash FROM users WHERE email = ? LIMIT 1",
         )
         .bind(email)
         .first<UserRow>();
@@ -205,7 +206,7 @@ async function findUserById(
 ): Promise<UserRow | null> {
     return db
         .prepare(
-            "SELECT id, email, password_hash FROM users WHERE id = ? LIMIT 1",
+            "SELECT id, name, email, password_hash FROM users WHERE id = ? LIMIT 1",
         )
         .bind(userId)
         .first<UserRow>();
@@ -213,22 +214,24 @@ async function findUserById(
 
 export async function registerUser(
     db: D1DatabaseLike,
+    name: string,
     email: string,
     password: string,
-): Promise<{ user: { id: string; email: string }; passwordHash: string }> {
+): Promise<{ user: { id: string; name: string; email: string }; passwordHash: string }> {
+    const normalizedName = name.trim();
     const normalizedEmail = email.trim().toLowerCase();
     const passwordHash = hashPassword(password);
     const userId = crypto.randomUUID();
 
     await db
         .prepare(
-            "INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)",
+            "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)",
         )
-        .bind(userId, normalizedEmail, passwordHash)
+        .bind(userId, normalizedName, normalizedEmail, passwordHash)
         .run();
 
     return {
-        user: { id: userId, email: normalizedEmail },
+        user: { id: userId, name: normalizedName, email: normalizedEmail },
         passwordHash,
     };
 }
@@ -237,7 +240,7 @@ export async function loginUser(
     db: D1DatabaseLike,
     email: string,
     password: string,
-): Promise<{ id: string; email: string } | null> {
+): Promise<{ id: string; name: string; email: string } | null> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await findUserByEmail(db, normalizedEmail);
 
@@ -245,20 +248,20 @@ export async function loginUser(
         return null;
     }
 
-    return { id: user.id, email: user.email };
+    return { id: user.id, name: user.name, email: user.email };
 }
 
 export async function getUserById(
     db: D1DatabaseLike,
     userId: string,
-): Promise<{ id: string; email: string } | null> {
+): Promise<{ id: string; name: string; email: string } | null> {
     const user = await findUserById(db, userId);
 
     if (!user) {
         return null;
     }
 
-    return { id: user.id, email: user.email };
+    return { id: user.id, name: user.name, email: user.email };
 }
 
 export async function deleteUserById(
