@@ -1,3 +1,4 @@
+import React from "react";
 import { Link2 } from "lucide-react";
 
 export function Brand({ compact = false, hideLabel = false, hideLabelOnNarrow = false }: { compact?: boolean; hideLabel?: boolean; hideLabelOnNarrow?: boolean }) {
