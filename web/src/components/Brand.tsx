@@ -1,13 +1,12 @@
 import { Link2 } from "lucide-react";
-import React from "react";
 
-export function Brand({ compact = false }: { compact?: boolean }) {
+export function Brand({ compact = false, hideLabel = false, hideLabelOnNarrow = false }: { compact?: boolean; hideLabel?: boolean; hideLabelOnNarrow?: boolean }) {
     return (
         <div className={`flex items-center gap-2.5 ${compact ? "justify-center" : ""}`}>
             <div className="grid h-8 w-8 place-items-center rounded-md bg-[#1769e0] text-white">
                 <Link2 size={17} strokeWidth={2.5} />
             </div>
-            <span className="font-display text-lg font-bold tracking-[-.04em] text-[#172033] sidebar-label">URLZ</span>
+            <span className={`font-display text-lg font-bold tracking-[-.04em] text-[#172033] ${hideLabel ? "hidden max-[700px]:inline" : ""} ${hideLabelOnNarrow ? "max-[900px]:hidden max-[700px]:inline" : ""}`}>URLZ</span>
         </div>
     );
 }

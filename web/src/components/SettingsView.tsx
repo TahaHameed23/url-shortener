@@ -5,13 +5,13 @@ import { Detail } from "./Brand";
 
 export function SettingsView({ user }: { user: User }) {
     return (
-        <div className="fade-in">
+        <div className="animate-[fade-in_0.35s_ease_both]">
             <h1 className="mb-8 font-display text-3xl font-bold tracking-[-.05em] text-[#172033]">
                 Account settings
             </h1>
 
             <div className="space-y-5">
-                <section className="soft-shadow rounded-lg border border-[#e5e7eb] bg-white p-5 sm:p-6">
+                <section className="rounded-lg border border-[#e5e7eb] bg-white p-5 shadow-[0_14px_36px_rgba(31,41,55,0.055)] sm:p-6">
                     <div className="flex items-center justify-between border-b border-[#edf0f4] pb-5">
                         <div>
                             <h2 className="font-display text-lg font-bold text-[#172033]">Account information</h2>
