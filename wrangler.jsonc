@@ -16,18 +16,39 @@
         {
             "binding": "DB",
             "database_name": "urlz",
-            "preview_database_id": "c020574a-5623-407b-be0c-cd192bab9545",
+            "migrations_dir": "migrations",
+            "preview_database_id": "3f06d718-03d6-4a6d-83c3-05ceb878dc09",
             "database_id": "4f4c4dcc-ac8b-4e3e-98c5-9043178ab3b0",
         },
     ],
     "kv_namespaces": [
         {
             "binding": "KV",
-            "preview_id": "d7b3a1f4e1c34e8f9a2b3c4d5e6f7g8h",
+            "preview_id": "c0f2eec09fbe4b2c872dde1ecdf51a64",
             "id": "8ecb386c5e2e498db74fe0b346dcc5cb",
         },
     ],
+    "previews": {
+        "vars": {
+            "KV_CACHE_ENABLED": "true",
+        },
+        "kv_namespaces": [
+            {
+                "binding": "KV",
+                "id": "c0f2eec09fbe4b2c872dde1ecdf51a64",
+            },
+        ],
+        "d1_databases": [
+            {
+                "binding": "DB",
+                "database_id": "3f06d718-03d6-4a6d-83c3-05ceb878dc09",
+            },
+        ],
+    },
     "vars": {
         "KV_CACHE_ENABLED": "true",
+    },
+    "secrets": {
+        "required": ["AUTH_SECRET"],
     },
 }

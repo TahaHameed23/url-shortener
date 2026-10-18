@@ -16,9 +16,9 @@
 ### JWT access tokens
 
 Access tokens are signed HS256 JWTs with a 15-minute lifetime. They contain the
-user id, email, issued-at time, expiry, and an explicit access-token type. The
-server validates the header, signature, required claims, and expiry before
-authorizing a request.
+user id, email, issued-at time, expiry, explicit access-token type, `iss`
+(`urlz`), and `aud` (`urlz-web`). The server validates the header, signature,
+required claims, issuer, audience, and expiry before authorizing a request.
 
 ### Rotating refresh tokens
 
@@ -45,13 +45,23 @@ submission. Client-side hashing was intentionally not added because a
 client-side hash would become a reusable password-equivalent and would not
 provide an additional authentication factor.
 
+### Authentication secret configuration
+
+`AUTH_SECRET` is the only supported secret name for signing and verifying
+access tokens. It must be configured as a Cloudflare Worker secret, not as a
+public `vars` value. Preview and production should use separate secret values.
+Worker Preview deployments do not automatically inherit production secrets;
+the preview deployment must receive `AUTH_SECRET` through Wrangler's preview
+secret mechanism. The local `deploy:preview` script uploads the ignored
+`.dev.vars` file for this purpose.
+
 ### Browser-only API boundary
 
 API routes require a same-origin browser signal (`Origin`, or compatible
 `Referer` and Fetch Metadata headers). Cross-origin and headerless scripted
-requests are rejected before route handling. A deployment-only `API_TEST_KEY`
-escape hatch remains available for automated tests and internal checks; it
-should not be configured for public production traffic.
+requests are rejected before route handling; there is no API-key bypass.
+Authentication endpoints are additionally rate-limited per client address in a
+15-minute window.
 
 ### D1 schema
 
@@ -59,7 +69,8 @@ Links retain an optional `created_by` owner and authenticated link reads
 enforce that ownership. Refresh sessions are kept in a separate
 `refresh_tokens` table with expiry, revocation, and user indexes. Query
 examples for active sessions and revocation live beside the schema in
-`src/d1/schema/query.sql`.
+`migrations/0001_initial_schema.sql`. D1 schema changes are applied with
+Wrangler migrations rather than by executing SQL files manually.
 
 ### Public redirect
 
