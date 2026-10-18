@@ -39,3 +39,6 @@ lerna-debug.log*
 council.yaml
 council_log.jsonl
 council_archive/
+dist-review/
+improvement.md
+review-*.md
