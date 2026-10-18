@@ -35,3 +35,7 @@ lerna-debug.log*
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+council.yaml
+council_log.jsonl
+council_archive/

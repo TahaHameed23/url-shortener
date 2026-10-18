@@ -7,6 +7,27 @@ npm run dev
 npm run deploy
 ```
 
+Apply D1 migrations to the local database used by `wrangler dev`:
+
+```txt
+npm run db:migrate:local
+```
+
+For the preview or production database, use the explicit target-specific
+commands:
+
+```txt
+npm run db:migrate:preview
+npm run db:migrate:remote
+```
+
+Create a new migration with Wrangler, then apply it to each intended
+environment:
+
+```txt
+bunx wrangler d1 migrations create urlz <migration-name>
+```
+
 [For generating/synchronizing types based on your Worker configuration run](https://developers.cloudflare.com/workers/wrangler/commands/#types):
 
 ```txt

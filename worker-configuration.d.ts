@@ -6,7 +6,7 @@ interface __BaseEnv_CloudflareBindings {
 	DB: D1Database;
 	ASSETS: Fetcher;
 	KV_CACHE_ENABLED: "true";
-	API_SECRET: string;
+	AUTH_SECRET: string;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {
@@ -19,7 +19,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "KV_CACHE_ENABLED" | "API_SECRET">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "KV_CACHE_ENABLED" | "AUTH_SECRET">> {}
 }
 
 // Begin runtime types
