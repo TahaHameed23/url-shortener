@@ -8,21 +8,7 @@ function sameOrigin(requestUrl: string, value: string): boolean {
     }
 }
 
-export function isTestRequest(c: any): boolean {
-    const configuredKey = c.env.API_TEST_KEY as string | undefined;
-    const suppliedKey = c.req.header("x-api-key");
-
-    return Boolean(
-        configuredKey && suppliedKey && suppliedKey === configuredKey,
-    );
-}
-
 export const apiAccessMiddleware = createMiddleware(async (c, next) => {
-    if (isTestRequest(c)) {
-        await next();
-        return;
-    }
-
     const requestUrl = c.req.url;
     const origin = c.req.header("origin");
     const referer = c.req.header("referer");

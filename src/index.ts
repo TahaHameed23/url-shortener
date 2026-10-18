@@ -4,6 +4,7 @@ import linkRouter from "./routes/links";
 import publicRouter from "./routes/public";
 import { csrfMiddleware } from "./middlewares/csrf";
 import { apiAccessMiddleware } from "./middlewares/api-access";
+import { authRateLimitMiddleware } from "./middlewares/rate-limit";
 const app = new Hono<{ Bindings: CloudflareBindings }>();
 
 app.use("*", async (c, next) => {
@@ -14,6 +15,7 @@ app.use("*", async (c, next) => {
 });
 app.use("/api/*", apiAccessMiddleware);
 app.use("/api/*", csrfMiddleware);
+app.use("/api/v1/auth/*", authRateLimitMiddleware);
 app.route("/api/v1", authRouter);
 app.route("/api/v1", linkRouter);
 
