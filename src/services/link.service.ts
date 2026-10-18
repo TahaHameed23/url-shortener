@@ -15,7 +15,9 @@ import {
 } from "../kv/kv";
 import { getSafeExternalUrl } from "./safe-url";
 
-function publicLink(link: StoredLink | CachedLinkRecord) {
+function publicLink(
+    link: StoredLink | CachedLinkRecord,
+): Omit<StoredLink, "createdBy"> {
     const { createdBy: _createdBy, ...result } = link;
     return result;
 }

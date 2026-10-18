@@ -7,8 +7,8 @@ export type CachedLinkRecord = {
     createdAt: string;
 };
 
-const LINK_BY_SLUG_PREFIX = "link:slug:";
-const LINK_BY_LONG_URL_PREFIX = "link:long:";
+const LINK_BY_SLUG_PREFIX = "link:v2:slug:";
+const LINK_BY_LONG_URL_PREFIX = "link:v2:long:";
 const DEFAULT_CACHE_TTL_SECONDS = 60 * 60;
 
 export function isKvCacheEnabled(value: string | undefined): boolean {
