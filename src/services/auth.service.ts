@@ -2,6 +2,14 @@ import crypto from "node:crypto";
 import type { D1DatabaseLike } from "../d1/db";
 
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 15;
+const JWT_ISSUER = "urlz";
+const JWT_AUDIENCE = "urlz-web";
+const SCRYPT_PARAMS = {
+    N: 16_384,
+    r: 8,
+    p: 1,
+    keyLength: 64,
+};
 type UserRow = {
     id: string;
     email: string;
@@ -14,6 +22,8 @@ export type AuthClaims = {
     email: string;
     exp: number;
     iat: number;
+    iss: string;
+    aud: string;
 };
 
 function base64UrlEncode(value: string): string {
@@ -28,18 +38,63 @@ function hashPassword(
     password: string,
     salt = crypto.randomBytes(16).toString("hex"),
 ): string {
-    const derivedKey = crypto.scryptSync(password, salt, 64).toString("hex");
-    return `${salt}:${derivedKey}`;
+    const derivedKey = crypto
+        .scryptSync(password, salt, SCRYPT_PARAMS.keyLength, {
+            N: SCRYPT_PARAMS.N,
+            r: SCRYPT_PARAMS.r,
+            p: SCRYPT_PARAMS.p,
+        })
+        .toString("hex");
+    return `scrypt$v1$N=${SCRYPT_PARAMS.N},r=${SCRYPT_PARAMS.r},p=${SCRYPT_PARAMS.p}$${salt}$${derivedKey}`;
 }
 
 function verifyPassword(password: string, storedHash: string): boolean {
-    const [salt, hash] = storedHash.split(":");
+    const parts = storedHash.split("$");
+    let salt: string | undefined;
+    let hash: string | undefined;
+    let params = SCRYPT_PARAMS;
+
+    if (parts.length === 5 && parts[0] === "scrypt" && parts[1] === "v1") {
+        const parameterValues = new Map<string, string>();
+        for (const parameter of parts[2].split(",")) {
+            const [name, value] = parameter.split("=");
+            if (name && value) {
+                parameterValues.set(name, value);
+            }
+        }
+        const N = Number(parameterValues.get("N"));
+        const r = Number(parameterValues.get("r"));
+        const p = Number(parameterValues.get("p"));
+
+        if (
+            !Number.isSafeInteger(N) ||
+            !Number.isSafeInteger(r) ||
+            !Number.isSafeInteger(p) ||
+            N <= 1 ||
+            r <= 0 ||
+            p <= 0
+        ) {
+            return false;
+        }
+
+        params = { N, r, p, keyLength: 64 };
+        salt = parts[3];
+        hash = parts[4];
+    } else {
+        [salt, hash] = storedHash.split(":");
+    }
 
     if (!salt || !hash) {
         return false;
     }
 
-    const derivedKey = crypto.scryptSync(password, salt, 64).toString("hex");
+    const derivedKey = crypto
+        .scryptSync(password, salt, params.keyLength, {
+            N: params.N,
+            r: params.r,
+            p: params.p,
+        })
+        .toString("hex");
     const expected = Buffer.from(hash, "hex");
     const actual = Buffer.from(derivedKey, "hex");
 
@@ -102,7 +157,9 @@ export function verifyAuthToken(
             typeof payload.email !== "string" ||
             typeof payload.exp !== "number" ||
             typeof payload.iat !== "number" ||
-            payload.exp <= Math.floor(Date.now() / 1000)
+                payload.iss !== JWT_ISSUER ||
+                payload.aud !== JWT_AUDIENCE ||
+                payload.exp <= Math.floor(Date.now() / 1000)
         ) {
             return null;
         }
@@ -123,6 +180,8 @@ function issueToken(
         typ: "access",
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS,
+        iss: JWT_ISSUER,
+        aud: JWT_AUDIENCE,
     };
 
     return signToken(payload, secret);
@@ -288,12 +347,17 @@ export async function rotateTokenPair(
         return null;
     }
 
-    await db
+    const result = await db
         .prepare(
-            "UPDATE refresh_tokens SET revoked_at = datetime('now') WHERE token_hash = ?",
+            "UPDATE refresh_tokens SET revoked_at = datetime('now') WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > datetime('now')",
         )
         .bind(tokenHash)
         .run();
+
+    const changes = (result as { meta?: { changes?: number } }).meta?.changes;
+    if (changes !== undefined && changes !== 1) {
+        return null;
+    }
 
     return createTokenPair(db, { id: user.id, email: user.email }, secret);
 }

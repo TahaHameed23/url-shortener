@@ -19,7 +19,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     if (!token) {
         return c.json({ error: "Missing access token" }, 401);
     }
-    const secret = c.env.AUTH_SECRET ?? c.env.API_SECRET;
+    const secret = c.env.AUTH_SECRET;
 
     if (!secret) {
         return c.json({ error: "Auth secret not configured" }, 500);

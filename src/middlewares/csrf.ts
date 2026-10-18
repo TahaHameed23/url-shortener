@@ -1,5 +1,4 @@
 import { createMiddleware } from "hono/factory";
-import { isTestRequest } from "./api-access";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -12,11 +11,6 @@ function sameOrigin(requestUrl: string, value: string): boolean {
 }
 
 export const csrfMiddleware = createMiddleware(async (c, next) => {
-    if (isTestRequest(c)) {
-        await next();
-        return;
-    }
-
     if (SAFE_METHODS.has(c.req.method)) {
         await next();
         return;

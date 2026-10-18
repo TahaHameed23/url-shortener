@@ -25,7 +25,7 @@ authRouter.use("/auth/refresh", secureAuthMiddleware);
 
 authRouter.post("/auth/register", async (c: any) => {
     const db = c.env.DB;
-    const secret = c.env.AUTH_SECRET ?? c.env.API_SECRET;
+    const secret = c.env.AUTH_SECRET;
 
     if (!secret) {
         return c.json({ error: "Auth secret not configured" }, 500);
@@ -87,7 +87,7 @@ authRouter.post("/auth/register", async (c: any) => {
 
 authRouter.post("/auth/login", async (c: any) => {
     const db = c.env.DB;
-    const secret = c.env.AUTH_SECRET ?? c.env.API_SECRET;
+    const secret = c.env.AUTH_SECRET;
 
     if (!secret) {
         return c.json({ error: "Auth secret not configured" }, 500);
@@ -139,7 +139,7 @@ authRouter.post("/auth/logout", async (c: any) => {
 });
 
 authRouter.post("/auth/refresh", async (c: any) => {
-    const secret = c.env.AUTH_SECRET ?? c.env.API_SECRET;
+    const secret = c.env.AUTH_SECRET;
     const db = c.env.DB;
     const refreshToken = getCookie(c.req.raw, REFRESH_COOKIE_NAME);
 
