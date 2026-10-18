@@ -58,8 +58,8 @@ export function AuthScreen({
     };
 
     return (
-        <div className="auth-grid">
-            <section className="auth-visual relative hidden overflow-hidden p-12 lg:block">
+        <div className="grid min-h-screen grid-cols-[minmax(0,1fr)_minmax(420px,0.92fr)] max-[900px]:block">
+            <section className="relative hidden overflow-hidden bg-[#f0f4ff] p-12 lg:block">
                 <Brand />
                 <div className="absolute inset-x-12 bottom-20 max-w-[480px]">
                     <div className="mb-6 inline-flex items-center rounded-full border border-[#c9dafe] bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#1769e0]">
@@ -75,8 +75,8 @@ export function AuthScreen({
                 <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full border-[38px] border-[#d9e6ff] opacity-70" />
             </section>
 
-            <section className="auth-form-wrap">
-                <div className="w-full max-w-[400px] fade-in">
+            <section className="grid place-items-center bg-white px-8 py-10 max-[900px]:min-h-screen max-[900px]:place-items-start max-[900px]:px-5 max-[900px]:pt-7">
+                <div className="w-full max-w-[400px] animate-[fade-in_0.35s_ease_both]">
                     <div className="mb-8 lg:hidden">
                         <Brand />
                     </div>
@@ -104,7 +104,7 @@ export function AuthScreen({
                             <label className="block text-sm font-semibold text-[#344054]">
                                 Name
                                 <input
-                                    className="input-base mt-2"
+                                    className="mt-2 w-full rounded-lg border border-[#dfe3ea] bg-white px-3.5 py-3 text-[#1f2937] outline-none transition-[border-color,box-shadow] focus:border-[#2878ee] focus:shadow-[0_0_0_3px_rgba(40,120,238,0.12)]"
                                     type="text"
                                     name="name"
                                     autoComplete="name"
@@ -119,7 +119,7 @@ export function AuthScreen({
                         <label className="block text-sm font-semibold text-[#344054]">
                             Email address
                             <input
-                                className="input-base mt-2"
+                                className="mt-2 w-full rounded-lg border border-[#dfe3ea] bg-white px-3.5 py-3 text-[#1f2937] outline-none transition-[border-color,box-shadow] focus:border-[#2878ee] focus:shadow-[0_0_0_3px_rgba(40,120,238,0.12)]"
                                 type="email"
                                 name="email"
                                 autoComplete="email"
@@ -133,7 +133,7 @@ export function AuthScreen({
                         <label className="block text-sm font-semibold text-[#344054]">
                             Password
                             <input
-                                className="input-base mt-2"
+                                className="mt-2 w-full rounded-lg border border-[#dfe3ea] bg-white px-3.5 py-3 text-[#1f2937] outline-none transition-[border-color,box-shadow] focus:border-[#2878ee] focus:shadow-[0_0_0_3px_rgba(40,120,238,0.12)]"
                                 type="password"
                                 name="password"
                                 autoComplete={register ? "new-password" : "current-password"}
@@ -149,7 +149,7 @@ export function AuthScreen({
                             <label className="block text-sm font-semibold text-[#344054]">
                                 Confirm password
                                 <input
-                                    className="input-base mt-2"
+                                    className="mt-2 w-full rounded-lg border border-[#dfe3ea] bg-white px-3.5 py-3 text-[#1f2937] outline-none transition-[border-color,box-shadow] focus:border-[#2878ee] focus:shadow-[0_0_0_3px_rgba(40,120,238,0.12)]"
                                     type="password"
                                     name="confirmPassword"
                                     autoComplete="new-password"
@@ -162,7 +162,7 @@ export function AuthScreen({
                             </label>
                         )}
 
-                        <button className="primary-button w-full" disabled={busy}>
+                        <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#1769e0] bg-[#1769e0] px-4 py-3 font-semibold text-white transition-[background,transform] hover:-translate-y-px hover:bg-[#0f59c5] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2" disabled={busy}>
                             {busy ? "Please wait..." : register ? "Create account" : "Login"}
                             <ArrowUpRight size={16} />
                         </button>

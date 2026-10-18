@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { Menu } from "lucide-react";
 import { AuthScreen } from "./components/AuthScreen";
 import { Dashboard } from "./components/Dashboard";
 import { Inspect } from "./components/Inspect";
@@ -21,12 +22,14 @@ function LoadingScreen() {
 export default function App() {
     const [user, setUser] = useState<User | null>(null);
     const [links, setLinks] = useState<LinkRecord[]>([]);
+    const [totalLinks, setTotalLinks] = useState(0);
     const [linksLoading, setLinksLoading] = useState(true);
     const [linksError, setLinksError] = useState("");
     const [loading, setLoading] = useState(true);
     const [authMode, setAuthMode] = useState<AuthMode>("login");
     const [view, setView] = useState<View>("dashboard");
     const [mobileNav, setMobileNav] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     const handleAuthModeChange = (nextMode: AuthMode) => {
         setAuthMode(nextMode);
@@ -42,6 +45,7 @@ export default function App() {
     useEffect(() => {
         if (!user) {
             setLinks([]);
+            setTotalLinks(0);
             setLinksLoading(false);
             return;
         }
@@ -49,7 +53,10 @@ export default function App() {
         setLinksLoading(true);
         setLinksError("");
         api<LinkListResponse>("/api/v1/links")
-            .then((result) => setLinks(result.links))
+            .then((result) => {
+                setLinks(result.links);
+                setTotalLinks(result.total);
+            })
             .catch((error) => {
                 setLinksError(error instanceof Error ? error.message : "Unable to load links.");
             })
@@ -60,6 +67,7 @@ export default function App() {
         if (typeof window === "undefined") return;
 
         const syncFromPath = () => {
+            setMobileNav(false);
             const path = window.location.pathname;
             const segments = path.split("/").filter(Boolean);
 
@@ -109,14 +117,21 @@ export default function App() {
             link,
             ...current.filter((entry) => entry.slug !== link.slug),
         ]);
+        setTotalLinks((current) => current + 1);
     }, []);
 
     const removeLink = useCallback((slug: string) => {
         setLinks((current) => current.filter((entry) => entry.slug !== slug));
+        setTotalLinks((current) => Math.max(0, current - 1));
     }, []);
 
+    const handleAuthenticated = (authenticatedUser: User) => {
+        setMobileNav(false);
+        setUser(authenticatedUser);
+    };
+
     if (loading) return <LoadingScreen />;
-    if (!user) return <AuthScreen mode={authMode} onModeChange={handleAuthModeChange} onAuthenticated={setUser} />;
+    if (!user) return <AuthScreen mode={authMode} onModeChange={handleAuthModeChange} onAuthenticated={handleAuthenticated} />;
 
     const navigate = (next: View) => {
         setView(next);
@@ -127,6 +142,7 @@ export default function App() {
         try {
             await api("/api/v1/auth/logout", { method: "POST" });
         } finally {
+            setMobileNav(false);
             setUser(null);
             setAuthMode("login");
             setView("dashboard");
@@ -134,18 +150,26 @@ export default function App() {
     };
 
     return (
-        <div className="app-grid bg-[#f7f8fa]">
-            <Sidebar view={view} mobileOpen={mobileNav} onNavigate={navigate} onLogout={logout} />
-            <main className="content">
+        <div className={`grid min-h-screen bg-[#f7f8fa] transition-[grid-template-columns] duration-200 ease-out max-[700px]:block ${sidebarCollapsed ? "grid-cols-[76px_minmax(0,1fr)]" : "grid-cols-[236px_minmax(0,1fr)]"} max-[900px]:grid-cols-[72px_minmax(0,1fr)]`}>
+            <Sidebar
+                view={view}
+                mobileOpen={mobileNav}
+                collapsed={sidebarCollapsed}
+                onToggle={() => setSidebarCollapsed((current) => !current)}
+                onCloseMobile={() => setMobileNav(false)}
+                onNavigate={navigate}
+                onLogout={logout}
+            />
+            <main className="min-w-0">
                 <header className="flex h-[74px] items-center justify-between border-b border-[#e5e7eb] bg-white px-5 sm:px-8">
                     <button
-                        className="rounded-md p-2 text-[#667085] hover:bg-[#f2f4f7] md:hidden"
+                        className="hidden h-9 w-9 place-items-center rounded-lg border-0 bg-transparent text-[#667085] transition-colors hover:bg-[#eef5ff] hover:text-[#1769e0] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2 max-[700px]:grid"
                         onClick={() => setMobileNav(!mobileNav)}
-                        aria-label="Toggle navigation"
+                        aria-expanded={mobileNav}
+                        aria-controls="primary-navigation"
+                        aria-label={mobileNav ? "Close navigation" : "Open navigation"}
                     >
-                        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-[2]">
-                            <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-                        </svg>
+                        <Menu size={20} />
                     </button>
                     <div className="hidden items-center gap-2 text-sm text-[#667085] md:flex">
                         <span>Workspace</span>
@@ -161,11 +185,12 @@ export default function App() {
                     </div>
                 </header>
 
-                <div className="page-width py-8 sm:py-10">
+                <div className="mx-auto w-[min(1120px,calc(100%-64px))] py-8 sm:py-10 max-[700px]:w-[min(100%-32px,620px)]">
                     {view === "dashboard" && (
                         <Dashboard
                             user={user}
                             links={links}
+                            totalLinks={totalLinks}
                             loading={linksLoading}
                             loadError={linksError}
                             onAddLink={addLink}
