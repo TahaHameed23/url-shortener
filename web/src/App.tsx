@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { AuthScreen } from "./components/AuthScreen";
 import { Dashboard } from "./components/Dashboard";
 import { Inspect } from "./components/Inspect";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
-import { api, loadRecent, saveRecent } from "./lib/urlz";
-import { AuthMode, LinkRecord, User, View } from "./types";
+import { api } from "./lib/urlz";
+import { AuthMode, LinkListResponse, LinkRecord, User, View } from "./types";
 
 function LoadingScreen() {
     return (
@@ -20,7 +20,9 @@ function LoadingScreen() {
 
 export default function App() {
     const [user, setUser] = useState<User | null>(null);
-    const [recent, setRecent] = useState<LinkRecord[]>(loadRecent);
+    const [links, setLinks] = useState<LinkRecord[]>([]);
+    const [linksLoading, setLinksLoading] = useState(true);
+    const [linksError, setLinksError] = useState("");
     const [loading, setLoading] = useState(true);
     const [authMode, setAuthMode] = useState<AuthMode>("login");
     const [view, setView] = useState<View>("dashboard");
@@ -36,6 +38,23 @@ export default function App() {
             .catch(() => setUser(null))
             .finally(() => setLoading(false));
     }, []);
+
+    useEffect(() => {
+        if (!user) {
+            setLinks([]);
+            setLinksLoading(false);
+            return;
+        }
+
+        setLinksLoading(true);
+        setLinksError("");
+        api<LinkListResponse>("/api/v1/links")
+            .then((result) => setLinks(result.links))
+            .catch((error) => {
+                setLinksError(error instanceof Error ? error.message : "Unable to load links.");
+            })
+            .finally(() => setLinksLoading(false));
+    }, [user]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -85,11 +104,16 @@ export default function App() {
         }
     }, [user, authMode, view]);
 
-    const addRecent = (link: LinkRecord) => {
-        const next = [link, ...recent.filter((entry) => entry.shortUrl !== link.shortUrl)];
-        setRecent(next);
-        saveRecent(next);
-    };
+    const addLink = useCallback((link: LinkRecord) => {
+        setLinks((current) => [
+            link,
+            ...current.filter((entry) => entry.slug !== link.slug),
+        ]);
+    }, []);
+
+    const removeLink = useCallback((slug: string) => {
+        setLinks((current) => current.filter((entry) => entry.slug !== slug));
+    }, []);
 
     if (loading) return <LoadingScreen />;
     if (!user) return <AuthScreen mode={authMode} onModeChange={handleAuthModeChange} onAuthenticated={setUser} />;
@@ -130,18 +154,26 @@ export default function App() {
                         </svg>
                     </div>
                     <div className="flex items-center gap-3">
-                        <span className="hidden text-sm text-[#667085] sm:inline">{user.email}</span>
+                        <span className="hidden text-sm text-[#667085] sm:inline">{user.name || user.email}</span>
                         <div className="grid h-9 w-9 place-items-center rounded-full bg-[#e7f0ff] text-sm font-bold text-[#1769e0]">
-                            {user.email[0].toUpperCase()}
+                            {(user.name || user.email)[0].toUpperCase()}
                         </div>
                     </div>
                 </header>
 
                 <div className="page-width py-8 sm:py-10">
                     {view === "dashboard" && (
-                        <Dashboard user={user} recent={recent} onAddRecent={addRecent} onInspect={() => navigate("inspect")} />
+                        <Dashboard
+                            user={user}
+                            links={links}
+                            loading={linksLoading}
+                            loadError={linksError}
+                            onAddLink={addLink}
+                            onRemoveLink={removeLink}
+                            onInspect={() => navigate("inspect")}
+                        />
                     )}
-                    {view === "inspect" && <Inspect recent={recent} onAddRecent={addRecent} />}
+                    {view === "inspect" && <Inspect />}
                     {view === "settings" && <SettingsView user={user} />}
                 </div>
             </main>

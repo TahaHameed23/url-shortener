@@ -1,8 +1,10 @@
 export type CachedLinkRecord = {
     id: string;
-    shortUrl: string;
-    longUrl: string;
+    slug: string;
+    destinationUrl: string;
     createdBy?: string;
+    clicks: number;
+    createdAt: string;
 };
 
 const LINK_BY_SLUG_PREFIX = "link:slug:";
@@ -60,11 +62,25 @@ export async function setCachedLink(
     const value = JSON.stringify(link);
 
     await Promise.all([
-        kv.put(slugCacheKey(link.shortUrl), value, {
+        kv.put(slugCacheKey(link.slug), value, {
             expirationTtl: ttlSeconds,
         }),
-        kv.put(longUrlCacheKey(link.longUrl, link.createdBy ?? "anonymous"), value, {
+        kv.put(longUrlCacheKey(link.destinationUrl, link.createdBy ?? "anonymous"), value, {
             expirationTtl: ttlSeconds,
         }),
+    ]);
+}
+
+export async function deleteCachedLink(
+    kv: KVNamespace | undefined,
+    link: CachedLinkRecord,
+): Promise<void> {
+    if (!kv) {
+        return;
+    }
+
+    await Promise.all([
+        kv.delete(slugCacheKey(link.slug)),
+        kv.delete(longUrlCacheKey(link.destinationUrl, link.createdBy ?? "anonymous")),
     ]);
 }

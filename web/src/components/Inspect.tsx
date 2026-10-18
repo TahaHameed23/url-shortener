@@ -4,7 +4,7 @@ import { api, shortUrl } from "../lib/urlz";
 import { LinkRecord } from "../types";
 import { Detail, PageHeading } from "./Brand";
 
-export function Inspect({ recent, onAddRecent }: { recent: LinkRecord[]; onAddRecent: (link: LinkRecord) => void }) {
+export function Inspect() {
     const [slug, setSlug] = useState("");
     const [link, setLink] = useState<LinkRecord | null>(null);
     const [error, setError] = useState("");
@@ -19,7 +19,6 @@ export function Inspect({ recent, onAddRecent }: { recent: LinkRecord[]; onAddRe
         try {
             const result = await api<LinkRecord>(`/api/v1/links/${encodeURIComponent(slug.trim())}`);
             setLink(result);
-            onAddRecent(result);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Link not found.");
         } finally {
@@ -72,7 +71,7 @@ export function Inspect({ recent, onAddRecent }: { recent: LinkRecord[]; onAddRe
 
                     <div className="mt-6 grid gap-5 sm:grid-cols-2 md:grid-cols-3">
                         <Detail label="Short URL" value={shortUrl(link)} />
-                        <Detail label="Destination" value={link.longUrl} />
+                        <Detail label="Destination" value={link.destinationUrl} />
                         <Detail label="Status" value="Active" />
                     </div>
                 </section>

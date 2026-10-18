@@ -40,7 +40,6 @@ export function Sidebar({
                     <LogOut size={17} />
                     <span className="sidebar-label">Log out</span>
                 </button>
-                <p className="sidebar-footer-text mt-4 px-3 text-[11px] text-[#98a2b3]">Secure workspace</p>
             </div>
         </aside>
     );

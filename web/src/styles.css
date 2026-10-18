@@ -61,7 +61,7 @@ button:disabled {
 .auth-form-wrap {
     display: grid;
     place-items: center;
-    padding: 48px 24px;
+    padding: 40px 32px;
     background: #fff;
 }
 .input-base {
@@ -219,7 +219,28 @@ button:disabled {
         display: none;
     }
     .auth-form-wrap {
-        min-height: 100vh;
+        min-height: 100svh;
+        padding: 28px 20px 32px;
+        place-items: start center;
+    }
+    .auth-form-wrap > div {
+        max-width: 420px;
+        padding-top: 4px;
+    }
+    .auth-form-wrap .primary-button {
+        min-height: 48px;
+    }
+    .auth-form-wrap .input-base {
+        min-height: 48px;
+    }
+}
+@media (max-width: 380px) {
+    .auth-form-wrap {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+    .auth-form-wrap h2 {
+        font-size: 1.75rem;
     }
     .table-row {
         grid-template-columns: minmax(145px, 1fr) 70px 70px;

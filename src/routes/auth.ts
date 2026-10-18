@@ -38,20 +38,23 @@ authRouter.post("/auth/register", async (c: any) => {
     let createdUserId: string | undefined;
     try {
         const body = (await c.req.json()) as {
+            name?: unknown;
             email?: unknown;
             password?: unknown;
         };
 
         if (
+            typeof body.name !== "string" ||
             typeof body.email !== "string" ||
             typeof body.password !== "string"
         ) {
             return c.json({ error: "Invalid email or password" }, 400);
         }
 
+        const name = body.name.trim();
         const email = body.email.trim().toLowerCase();
 
-        if (!email || !email.includes("@") || body.password.length < 8) {
+        if (!name || name.length > 100 || !email || !email.includes("@") || body.password.length < 8) {
             return c.json({ error: "Invalid email or password" }, 400);
         }
 
@@ -64,7 +67,7 @@ authRouter.post("/auth/register", async (c: any) => {
             return c.json({ error: "User already exists" }, 409);
         }
 
-        const { user } = await registerUser(db, email, body.password);
+        const { user } = await registerUser(db, name, email, body.password);
         createdUserId = user.id;
         const tokens = await createTokenPair(db, user, secret);
         for (const cookie of createAuthCookies(c.req.url, tokens.accessToken, tokens.refreshToken)) {

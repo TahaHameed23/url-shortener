@@ -96,10 +96,17 @@ test("concurrent refresh requests can rotate a token only once", async () => {
                     if (query.includes("SELECT user_id")) {
                         return revoked ? null : ({ user_id: "user-1" } as T);
                     }
-                    if (query.includes("SELECT id, email")) {
-                        return { id: "user-1", email: "user@example.com" } as T;
+                    if (query.includes("SELECT id, name, email")) {
+                        return {
+                            id: "user-1",
+                            name: "Test User",
+                            email: "user@example.com",
+                        } as T;
                     }
                     return null;
+                },
+                async all<T>() {
+                    return { results: [] as T[] };
                 },
                 async run() {
                     if (query.startsWith("UPDATE refresh_tokens SET revoked_at")) {

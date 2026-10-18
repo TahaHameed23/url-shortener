@@ -6,6 +6,7 @@ const MAX_RANDOM_ID = 281474976710655;
 export interface D1PreparedStatementLike {
     bind(...values: unknown[]): D1PreparedStatementLike;
     first<T = Record<string, unknown>>(): Promise<T | null>;
+    all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
     run(): Promise<unknown>;
 }
 
@@ -15,9 +16,11 @@ export interface D1DatabaseLike {
 
 export interface StoredLink {
     id: string;
-    shortUrl: string;
-    longUrl: string;
+    slug: string;
+    destinationUrl: string;
     createdBy?: string;
+    clicks: number;
+    createdAt: string;
 }
 
 interface LinkRow {
@@ -25,6 +28,16 @@ interface LinkRow {
     slug: string;
     original_url: string;
     created_by: string | null;
+    clicks: number;
+    created_at: string;
+}
+
+function normalizeTimestamp(value: string): string {
+    if (value.includes("T")) {
+        return value.endsWith("Z") ? value : `${value}Z`;
+    }
+
+    return `${value.replace(" ", "T")}Z`;
 }
 
 async function shortUrlExists(
@@ -44,7 +57,7 @@ export async function getLinkBySlug(
 ): Promise<StoredLink | null> {
     const row = await db
         .prepare(
-            "SELECT id, slug, original_url, created_by FROM links WHERE slug = ? LIMIT 1",
+            "SELECT id, slug, original_url, created_by, clicks, created_at FROM links WHERE slug = ? LIMIT 1",
         )
         .bind(slug)
         .first<LinkRow>();
@@ -55,10 +68,33 @@ export async function getLinkBySlug(
 
     return {
         id: row.id,
-        shortUrl: row.slug,
-        longUrl: row.original_url,
+        slug: row.slug,
+        destinationUrl: row.original_url,
         createdBy: row.created_by ?? undefined,
+        clicks: row.clicks,
+        createdAt: normalizeTimestamp(row.created_at),
     };
+}
+
+export async function listLinksByUser(
+    db: D1DatabaseLike,
+    userId: string,
+): Promise<StoredLink[]> {
+    const result = await db
+        .prepare(
+            "SELECT id, slug, original_url, created_by, clicks, created_at FROM links WHERE created_by = ? ORDER BY created_at DESC",
+        )
+        .bind(userId)
+        .all<LinkRow>();
+
+    return result.results.map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        destinationUrl: row.original_url,
+        createdBy: row.created_by ?? undefined,
+        clicks: row.clicks,
+        createdAt: normalizeTimestamp(row.created_at),
+    }));
 }
 
 export async function incrementLinkClicks(
@@ -76,7 +112,7 @@ async function insertLink(db: D1DatabaseLike, link: StoredLink): Promise<void> {
         .prepare(
             "INSERT INTO links (id, slug, original_url, created_by) VALUES (?, ?, ?, ?)",
         )
-        .bind(link.id, link.shortUrl, link.longUrl, link.createdBy ?? null)
+        .bind(link.id, link.slug, link.destinationUrl, link.createdBy ?? null)
         .run();
 }
 
@@ -96,9 +132,11 @@ export async function createUniqueLink(
 
         const link = {
             id: id.toString(),
-            shortUrl,
-            longUrl,
+            slug: shortUrl,
+            destinationUrl: longUrl,
             createdBy,
+            clicks: 0,
+            createdAt: new Date().toISOString(),
         };
 
         await insertLink(db, link);
