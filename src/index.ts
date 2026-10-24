@@ -5,7 +5,47 @@ import publicRouter from "./routes/public";
 import { csrfMiddleware } from "./middlewares/csrf";
 import { apiAccessMiddleware } from "./middlewares/api-access";
 import { authRateLimitMiddleware } from "./middlewares/rate-limit";
+import {
+    logHttpFailure,
+    logServerError,
+} from "./services/error-logging";
 const app = new Hono<{ Bindings: CloudflareBindings }>();
+
+app.use("*", async (c, next) => {
+    const requestId = crypto.randomUUID();
+    const startedAt = Date.now();
+    const requestLogContext = {
+        requestId,
+        method: c.req.method,
+        path: new URL(c.req.url).pathname,
+    };
+    c.header("X-Request-ID", requestId);
+
+    try {
+        await next();
+    } finally {
+        if (c.res.status >= 400) {
+            logHttpFailure({
+                ...requestLogContext,
+                status: c.res.status,
+                durationMs: Date.now() - startedAt,
+            });
+        }
+    }
+});
+
+app.onError((error, c) => {
+    const requestId = c.res.headers.get("X-Request-ID") ?? undefined;
+    logServerError("http.unhandled_exception", error, {
+        requestId,
+        method: c.req.method,
+        path: new URL(c.req.url).pathname,
+    });
+    return c.json(
+        { error: "Internal server error", requestId },
+        500,
+    );
+});
 
 app.use("*", async (c, next) => {
     c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");

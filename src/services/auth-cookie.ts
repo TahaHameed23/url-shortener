@@ -2,19 +2,22 @@ export const ACCESS_COOKIE_NAME = "urlz_access";
 export const REFRESH_COOKIE_NAME = "urlz_refresh";
 const ACCESS_COOKIE_MAX_AGE = 60 * 15;
 const REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
+const ACCESS_COOKIE_PATH = "/";
+const REFRESH_COOKIE_PATH = "/api/v1/auth/";
 
 function createCookie(
     requestUrl: string,
     name: string,
     token: string,
     maxAge: number,
+    path: string,
 ): string {
-    return `${name}=${encodeURIComponent(token)}; ${cookieAttributes(requestUrl, maxAge)}`;
+    return `${name}=${encodeURIComponent(token)}; ${cookieAttributes(requestUrl, maxAge, path)}`;
 }
 
-function cookieAttributes(requestUrl: string, maxAge: number): string {
+function cookieAttributes(requestUrl: string, maxAge: number, path: string): string {
     const secure = new URL(requestUrl).protocol === "https:" ? "; Secure" : "";
-    return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+    return `Path=${path}; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
 }
 
 export function createAuthCookies(
@@ -28,12 +31,14 @@ export function createAuthCookies(
             ACCESS_COOKIE_NAME,
             accessToken,
             ACCESS_COOKIE_MAX_AGE,
+            ACCESS_COOKIE_PATH,
         ),
         createCookie(
             requestUrl,
             REFRESH_COOKIE_NAME,
             refreshToken,
             REFRESH_COOKIE_MAX_AGE,
+            REFRESH_COOKIE_PATH,
         ),
     ];
 }
@@ -41,8 +46,8 @@ export function createAuthCookies(
 export function clearAuthCookies(requestUrl: string): string[] {
     const secure = new URL(requestUrl).protocol === "https:" ? "; Secure" : "";
     return [
-        `${ACCESS_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`,
-        `${REFRESH_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`,
+        `${ACCESS_COOKIE_NAME}=; Path=${ACCESS_COOKIE_PATH}; Max-Age=0; HttpOnly; SameSite=Lax${secure}`,
+        `${REFRESH_COOKIE_NAME}=; Path=${REFRESH_COOKIE_PATH}; Max-Age=0; HttpOnly; SameSite=Lax${secure}`,
     ];
 }
 

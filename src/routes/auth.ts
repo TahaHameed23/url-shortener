@@ -16,12 +16,46 @@ import {
     getCookie,
 } from "../services/auth-cookie";
 import { secureAuthMiddleware } from "../middlewares/secure-auth";
+import { logServerError } from "../services/error-logging";
 
 const authRouter = new Hono<{ Bindings: CloudflareBindings }>();
+
+async function readJsonBody(
+    c: any,
+): Promise<
+    | { body: Record<string, unknown> }
+    | { error: "Invalid JSON body" }
+> {
+    try {
+        const body: unknown = await c.req.json();
+        if (body === null || typeof body !== "object" || Array.isArray(body)) {
+            return { error: "Invalid JSON body" };
+        }
+        return { body: body as Record<string, unknown> };
+    } catch {
+        return { error: "Invalid JSON body" };
+    }
+}
+
+function isDuplicateEmailError(error: unknown): boolean {
+    return (
+        error instanceof Error &&
+        /UNIQUE constraint failed:\s*users\.email/i.test(error.message)
+    );
+}
+
+function logAuthFailure(c: any, event: string, error: unknown): void {
+    logServerError(event, error, {
+        requestId: c.res.headers.get("X-Request-ID") ?? undefined,
+        method: c.req.method,
+        path: new URL(c.req.url).pathname,
+    });
+}
 
 authRouter.use("/auth/register", secureAuthMiddleware);
 authRouter.use("/auth/login", secureAuthMiddleware);
 authRouter.use("/auth/refresh", secureAuthMiddleware);
+authRouter.use("/auth/logout", secureAuthMiddleware);
 
 authRouter.post("/auth/register", async (c: any) => {
     const db = c.env.DB;
@@ -37,11 +71,11 @@ authRouter.post("/auth/register", async (c: any) => {
 
     let createdUserId: string | undefined;
     try {
-        const body = (await c.req.json()) as {
-            name?: unknown;
-            email?: unknown;
-            password?: unknown;
-        };
+        const parsed = await readJsonBody(c);
+        if ("error" in parsed) {
+            return c.json({ error: parsed.error }, 400);
+        }
+        const body = parsed.body;
 
         if (
             typeof body.name !== "string" ||
@@ -54,23 +88,24 @@ authRouter.post("/auth/register", async (c: any) => {
         const name = body.name.trim();
         const email = body.email.trim().toLowerCase();
 
-        if (!name || name.length > 100 || !email || !email.includes("@") || body.password.length < 8) {
+        if (
+            !name ||
+            name.length > 100 ||
+            !email ||
+            !email.includes("@") ||
+            body.password.length < 8
+        ) {
             return c.json({ error: "Invalid email or password" }, 400);
-        }
-
-        const existingUser = await db
-            .prepare("SELECT id FROM users WHERE email = ? LIMIT 1")
-            .bind(email)
-            .first();
-
-        if (existingUser) {
-            return c.json({ error: "User already exists" }, 409);
         }
 
         const { user } = await registerUser(db, name, email, body.password);
         createdUserId = user.id;
         const tokens = await createTokenPair(db, user, secret);
-        for (const cookie of createAuthCookies(c.req.url, tokens.accessToken, tokens.refreshToken)) {
+        for (const cookie of createAuthCookies(
+            c.req.url,
+            tokens.accessToken,
+            tokens.refreshToken,
+        )) {
             c.header("Set-Cookie", cookie, { append: true });
         }
 
@@ -80,10 +115,19 @@ authRouter.post("/auth/register", async (c: any) => {
             },
             201,
         );
-    } catch {
-        if (createdUserId) {
-            await deleteUserById(db, createdUserId);
+    } catch (error) {
+        if (isDuplicateEmailError(error)) {
+            return c.json({ error: "User already exists" }, 409);
         }
+
+        if (createdUserId) {
+            try {
+                await deleteUserById(db, createdUserId);
+            } catch (cleanupError) {
+                logAuthFailure(c, "auth.register.rollback_failed", cleanupError);
+            }
+        }
+        logAuthFailure(c, "auth.register.failed", error);
         return c.json({ error: "Failed to register user" }, 500);
     }
 });
@@ -101,10 +145,11 @@ authRouter.post("/auth/login", async (c: any) => {
     }
 
     try {
-        const body = (await c.req.json()) as {
-            email?: unknown;
-            password?: unknown;
-        };
+        const parsed = await readJsonBody(c);
+        if ("error" in parsed) {
+            return c.json({ error: parsed.error }, 400);
+        }
+        const body = parsed.body;
 
         if (
             typeof body.email !== "string" ||
@@ -120,12 +165,17 @@ authRouter.post("/auth/login", async (c: any) => {
         }
 
         const tokens = await createTokenPair(db, user, secret);
-        for (const cookie of createAuthCookies(c.req.url, tokens.accessToken, tokens.refreshToken)) {
+        for (const cookie of createAuthCookies(
+            c.req.url,
+            tokens.accessToken,
+            tokens.refreshToken,
+        )) {
             c.header("Set-Cookie", cookie, { append: true });
         }
 
         return c.json({ user }, 200);
-    } catch {
+    } catch (error) {
+        logAuthFailure(c, "auth.login.failed", error);
         return c.json({ error: "Failed to login user" }, 500);
     }
 });
@@ -155,7 +205,11 @@ authRouter.post("/auth/refresh", async (c: any) => {
         return c.json({ error: "Invalid or expired refresh token" }, 401);
     }
 
-    for (const cookie of createAuthCookies(c.req.url, tokens.accessToken, tokens.refreshToken)) {
+    for (const cookie of createAuthCookies(
+        c.req.url,
+        tokens.accessToken,
+        tokens.refreshToken,
+    )) {
         c.header("Set-Cookie", cookie, { append: true });
     }
     return c.json({ ok: true }, 200);
