@@ -3,6 +3,14 @@ npm install
 npm run dev
 ```
 
+Run the complete test suite, or run unit and API integration tests separately:
+
+```txt
+bun test
+bun run test:unit
+bun run test:integration
+```
+
 ```txt
 npm run deploy
 ```

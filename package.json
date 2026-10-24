@@ -4,6 +4,8 @@
     "scripts": {
         "build:web": "vite build",
         "test": "bun test",
+        "test:unit": "bun test tests/auth-cookie.test.ts tests/auth-routes.test.ts tests/auth.test.ts tests/safe-url.test.ts",
+        "test:integration": "bun test tests/api.integration.test.ts",
         "dev:web": "vite",
         "dev": "wrangler dev",
         "db:migrations": "wrangler d1 migrations list urlz --local",

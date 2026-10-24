@@ -14,6 +14,15 @@ import {
     type CachedLinkRecord,
 } from "../kv/kv";
 import { getSafeExternalUrl } from "./safe-url";
+import { logServerError } from "./error-logging";
+
+function logLinkFailure(c: any, event: string, error: unknown): void {
+    logServerError(event, error, {
+        requestId: c.res.headers.get("X-Request-ID") ?? undefined,
+        method: c.req.method,
+        path: new URL(c.req.url).pathname,
+    });
+}
 
 function publicLink(
     link: StoredLink | CachedLinkRecord,
@@ -46,7 +55,8 @@ export const createLink = async (c: any) => {
         }
 
         return c.json(publicLink(link), 201);
-    } catch {
+    } catch (error) {
+        logLinkFailure(c, "links.create.failed", error);
         return c.json({ error: "Failed to create link" }, 500);
     }
 };
@@ -72,7 +82,8 @@ export const listLinks = async (c: any) => {
             },
             200,
         );
-    } catch {
+    } catch (error) {
+        logLinkFailure(c, "links.list.failed", error);
         return c.json({ error: "Failed to fetch links" }, 500);
     }
 };
@@ -122,7 +133,8 @@ export const getLink = async (c: any) => {
         }
 
         return c.json(publicLink(result.link), 200);
-    } catch {
+    } catch (error) {
+        logLinkFailure(c, "links.get.failed", error);
         return c.json({ error: "Failed to fetch link" }, 500);
     }
 };
@@ -155,7 +167,8 @@ export const deleteLink = async (c: any) => {
         }
 
         return c.json({ ok: true }, 200);
-    } catch {
+    } catch (error) {
+        logLinkFailure(c, "links.delete.failed", error);
         return c.json({ error: "Failed to delete link" }, 500);
     }
 };
@@ -183,17 +196,25 @@ export const redirectLink = async (c: any) => {
 
         if (cached) {
             await incrementLinkClicks(result.db, result.slug);
+            await setCachedLink(c.env.KV, {
+                ...cached,
+                clicks: cached.clicks + 1,
+            });
             return c.redirect(destination, 302);
         }
 
         await incrementLinkClicks(result.db, result.slug);
 
         if (cacheEnabled) {
-            await setCachedLink(c.env.KV, result.link as CachedLinkRecord);
+            await setCachedLink(c.env.KV, {
+                ...result.link,
+                clicks: result.link.clicks + 1,
+            });
         }
 
         return c.redirect(destination, 302);
-    } catch {
+    } catch (error) {
+        logLinkFailure(c, "links.redirect.failed", error);
         return c.json({ error: "Failed to fetch link" }, 500);
     }
 };
