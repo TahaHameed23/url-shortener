@@ -58,26 +58,26 @@ export function AuthScreen({
     };
 
     return (
-        <div className="grid min-h-screen grid-cols-[minmax(0,1fr)_minmax(420px,0.92fr)] max-[900px]:block">
-            <section className="relative hidden overflow-hidden bg-[#f0f4ff] p-12 lg:block">
+        <div className="grid min-h-screen grid-cols-[minmax(300px,1fr)_minmax(400px,0.92fr)] max-md:block">
+            <section className="relative hidden overflow-hidden bg-[#f0f4ff] p-8 md:block xl:p-12">
                 <Brand />
-                <div className="absolute inset-x-12 bottom-20 max-w-[480px]">
+                <div className="absolute inset-x-8 top-[56%] max-w-[480px] -translate-y-1/2 xl:inset-x-12">
                     <div className="mb-6 inline-flex items-center rounded-full border border-[#c9dafe] bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#1769e0]">
                         URL shortener and link inspector
                     </div>
-                    <h1 className="font-display text-6xl font-bold leading-[.98] tracking-[-.07em] text-[#16213a]">
+                    <h1 className="font-display text-4xl font-bold leading-[.98] tracking-[-.07em] text-[#16213a] xl:text-6xl">
                         Short links, ready to share.
                     </h1>
-                    <p className="mt-6 max-w-[410px] text-base leading-7 text-[#667085]">
+                    <p className="mt-5 max-w-[410px] text-sm leading-6 text-[#667085] xl:mt-6 xl:text-base xl:leading-7">
                         Create a clean URL, inspect where it goes, and keep your links together in one workspace.
                     </p>
                 </div>
                 <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full border-[38px] border-[#d9e6ff] opacity-70" />
             </section>
 
-            <section className="grid place-items-center bg-white px-8 py-10 max-[900px]:min-h-screen max-[900px]:place-items-start max-[900px]:px-5 max-[900px]:pt-7">
+            <section className="grid place-items-center bg-white px-8 py-10 max-md:min-h-[100svh] max-md:px-5 max-md:py-7">
                 <div className="w-full max-w-[400px] animate-[fade-in_0.35s_ease_both]">
-                    <div className="mb-8 lg:hidden">
+                    <div className="mb-8 md:hidden">
                         <Brand />
                     </div>
                     <div className="mb-8">
