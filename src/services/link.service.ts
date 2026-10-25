@@ -1,3 +1,4 @@
+import type { Context } from "hono";
 import {
     createUniqueLink,
     getLinkBySlug,
@@ -11,12 +12,16 @@ import {
     getCachedLinkBySlug,
     deleteCachedLink,
     setCachedLink,
-    type CachedLinkRecord,
 } from "../kv/kv";
 import { getSafeExternalUrl } from "./safe-url";
 import { logServerError } from "./error-logging";
+import type { AppEnv } from "../types";
 
-function logLinkFailure(c: any, event: string, error: unknown): void {
+function logLinkFailure(
+    c: Context<AppEnv>,
+    event: string,
+    error: unknown,
+): void {
     logServerError(event, error, {
         requestId: c.res.headers.get("X-Request-ID") ?? undefined,
         method: c.req.method,
@@ -24,23 +29,22 @@ function logLinkFailure(c: any, event: string, error: unknown): void {
     });
 }
 
-function publicLink(
-    link: StoredLink | CachedLinkRecord,
-): Omit<StoredLink, "createdBy"> {
+function publicLink(link: StoredLink): Omit<StoredLink, "createdBy"> {
     const { createdBy: _createdBy, ...result } = link;
     return result;
 }
 
-export const createLink = async (c: any) => {
-    const body = c.get("body") as { destinationUrl?: string } | undefined;
-    const auth = c.get("auth") as { userId?: string } | undefined;
+export const createLink = async (c: Context<AppEnv>) => {
+    const destinationUrl = c.get("destinationUrl");
+    const auth = c.get("auth");
+    const db: D1DatabaseLike | undefined = c.env.DB;
 
-    if (!body?.destinationUrl) {
+    if (!destinationUrl) {
         return c.json({ error: "Missing destinationUrl" }, 400);
     }
-
-    const db = c.env.DB as D1DatabaseLike | undefined;
-
+    if (!auth?.userId) {
+        return c.json({ error: "Unauthorized" }, 401);
+    }
     if (!db) {
         return c.json({ error: "Database unavailable" }, 500);
     }
@@ -48,7 +52,7 @@ export const createLink = async (c: any) => {
     try {
         const cacheEnabled = isKvCacheEnabled(c.env.KV_CACHE_ENABLED);
 
-        const link = await createUniqueLink(db, body.destinationUrl, auth?.userId);
+        const link = await createUniqueLink(db, destinationUrl, auth.userId);
 
         if (cacheEnabled) {
             await setCachedLink(c.env.KV, link);
@@ -61,9 +65,9 @@ export const createLink = async (c: any) => {
     }
 };
 
-export const listLinks = async (c: any) => {
-    const auth = c.get("auth") as { userId?: string } | undefined;
-    const db = c.env.DB as D1DatabaseLike | undefined;
+export const listLinks = async (c: Context<AppEnv>) => {
+    const auth = c.get("auth");
+    const db: D1DatabaseLike | undefined = c.env.DB;
 
     if (!auth?.userId) {
         return c.json({ error: "Unauthorized" }, 401);
@@ -88,9 +92,13 @@ export const listLinks = async (c: any) => {
     }
 };
 
-const loadLink = async (c: any) => {
+const loadLink = async (c: Context<AppEnv>) => {
     const slug = c.req.param("slug");
-    const db = c.env.DB as D1DatabaseLike | undefined;
+    const db: D1DatabaseLike | undefined = c.env.DB;
+
+    if (!slug) {
+        return { error: c.json({ error: "Link not found" }, 404) };
+    }
 
     if (!db) {
         return { error: c.json({ error: "Database unavailable" }, 500) };
@@ -105,7 +113,7 @@ const loadLink = async (c: any) => {
     return { db, link, slug };
 };
 
-export const getLink = async (c: any) => {
+export const getLink = async (c: Context<AppEnv>) => {
     try {
         const result = await loadLink(c);
 
@@ -113,7 +121,7 @@ export const getLink = async (c: any) => {
             return result.error;
         }
 
-        const auth = c.get("auth") as { userId?: string } | undefined;
+        const auth = c.get("auth");
         if (!auth?.userId || result.link.createdBy !== auth.userId) {
             return c.json({ error: "Link not found" }, 404);
         }
@@ -129,7 +137,7 @@ export const getLink = async (c: any) => {
         }
 
         if (cacheEnabled) {
-            await setCachedLink(c.env.KV, result.link as CachedLinkRecord);
+            await setCachedLink(c.env.KV, result.link);
         }
 
         return c.json(publicLink(result.link), 200);
@@ -139,7 +147,7 @@ export const getLink = async (c: any) => {
     }
 };
 
-export const deleteLink = async (c: any) => {
+export const deleteLink = async (c: Context<AppEnv>) => {
     try {
         const result = await loadLink(c);
 
@@ -147,7 +155,7 @@ export const deleteLink = async (c: any) => {
             return result.error;
         }
 
-        const auth = c.get("auth") as { userId?: string } | undefined;
+        const auth = c.get("auth");
         if (!auth?.userId || result.link.createdBy !== auth.userId) {
             return c.json({ error: "Link not found" }, 404);
         }
@@ -156,14 +164,14 @@ export const deleteLink = async (c: any) => {
             .prepare("DELETE FROM links WHERE slug = ? AND created_by = ?")
             .bind(result.slug, auth.userId)
             .run();
-        const changes = (deleted as { meta?: { changes?: number } }).meta?.changes;
+        const changes = deleted.meta?.changes;
 
         if (changes !== undefined && changes !== 1) {
             return c.json({ error: "Link not found" }, 404);
         }
 
         if (isKvCacheEnabled(c.env.KV_CACHE_ENABLED)) {
-            await deleteCachedLink(c.env.KV, result.link as CachedLinkRecord);
+            await deleteCachedLink(c.env.KV, result.link);
         }
 
         return c.json({ ok: true }, 200);
@@ -173,7 +181,7 @@ export const deleteLink = async (c: any) => {
     }
 };
 
-export const redirectLink = async (c: any) => {
+export const redirectLink = async (c: Context<AppEnv>) => {
     try {
         const result = await loadLink(c);
 

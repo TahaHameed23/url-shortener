@@ -1,5 +1,11 @@
 import crypto from "node:crypto";
 import type { D1DatabaseLike } from "../d1/db";
+import {
+    authClaimsSchema,
+    jwtHeaderSchema,
+    type AuthClaims,
+    type User,
+} from "../schemas/auth";
 
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 15;
 const JWT_ISSUER = "urlz";
@@ -17,15 +23,7 @@ type UserRow = {
     password_hash: string | null;
 };
 
-export type AuthClaims = {
-    typ: "access";
-    userId: string;
-    email: string;
-    exp: number;
-    iat: number;
-    iss: string;
-    aud: string;
-};
+export type { AuthClaims } from "../schemas/auth";
 
 function base64UrlEncode(value: string): string {
     return Buffer.from(value, "utf8").toString("base64url");
@@ -142,30 +140,22 @@ export function verifyAuthToken(
     }
 
     try {
-        const header = JSON.parse(base64UrlDecode(encodedHeader)) as {
-            alg?: string;
-            typ?: string;
-        };
-        const payload = JSON.parse(
+        const header: unknown = JSON.parse(base64UrlDecode(encodedHeader));
+        const validatedHeader = jwtHeaderSchema.safeParse(header);
+        const payload: unknown = JSON.parse(
             base64UrlDecode(encodedPayload),
-        ) as AuthClaims;
+        );
+        const claims = authClaimsSchema.safeParse(payload);
 
         if (
-            header.alg !== "HS256" ||
-            header.typ !== "JWT" ||
-            payload.typ !== "access" ||
-            typeof payload.userId !== "string" ||
-            typeof payload.email !== "string" ||
-            typeof payload.exp !== "number" ||
-            typeof payload.iat !== "number" ||
-                payload.iss !== JWT_ISSUER ||
-                payload.aud !== JWT_AUDIENCE ||
-                payload.exp <= Math.floor(Date.now() / 1000)
+            !validatedHeader.success ||
+            !claims.success ||
+            claims.data.exp <= Math.floor(Date.now() / 1000)
         ) {
             return null;
         }
 
-        return payload;
+        return claims.data;
     } catch {
         return null;
     }
@@ -217,7 +207,7 @@ export async function registerUser(
     name: string,
     email: string,
     password: string,
-): Promise<{ user: { id: string; name: string; email: string }; passwordHash: string }> {
+): Promise<{ user: User; passwordHash: string }> {
     const normalizedName = name.trim();
     const normalizedEmail = email.trim().toLowerCase();
     const passwordHash = hashPassword(password);
@@ -240,7 +230,7 @@ export async function loginUser(
     db: D1DatabaseLike,
     email: string,
     password: string,
-): Promise<{ id: string; name: string; email: string } | null> {
+): Promise<User | null> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await findUserByEmail(db, normalizedEmail);
 
@@ -254,7 +244,7 @@ export async function loginUser(
 export async function getUserById(
     db: D1DatabaseLike,
     userId: string,
-): Promise<{ id: string; name: string; email: string } | null> {
+): Promise<User | null> {
     const user = await findUserById(db, userId);
 
     if (!user) {
@@ -357,7 +347,7 @@ export async function rotateTokenPair(
         .bind(tokenHash)
         .run();
 
-    const changes = (result as { meta?: { changes?: number } }).meta?.changes;
+    const changes = result.meta?.changes;
     if (changes !== undefined && changes !== 1) {
         return null;
     }

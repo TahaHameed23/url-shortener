@@ -1,4 +1,5 @@
 import { createMiddleware } from "hono/factory";
+import type { AppEnv } from "../types";
 
 function isLocalDevelopment(hostname: string): boolean {
     return (
@@ -8,7 +9,7 @@ function isLocalDevelopment(hostname: string): boolean {
     );
 }
 
-export const secureAuthMiddleware = createMiddleware(async (c, next) => {
+export const secureAuthMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     const requestUrl = new URL(c.req.url);
 
     if (requestUrl.protocol !== "https:" && !isLocalDevelopment(requestUrl.hostname)) {

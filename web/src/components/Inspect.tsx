@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Check, ExternalLink, FileSearch, Search } from "lucide-react";
 import { api, shortUrl } from "../lib/urlz";
-import { LinkRecord } from "../types";
+import type { LinkRecord } from "../types";
 import { Detail, PageHeading } from "./Brand";
 
 export function Inspect() {

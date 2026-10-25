@@ -9,7 +9,8 @@ import {
     logHttpFailure,
     logServerError,
 } from "./services/error-logging";
-const app = new Hono<{ Bindings: CloudflareBindings }>();
+import type { AppEnv } from "./types";
+const app = new Hono<AppEnv>();
 
 app.use("*", async (c, next) => {
     const requestId = crypto.randomUUID();

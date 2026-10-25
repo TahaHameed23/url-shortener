@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import { authMiddleware } from "../middlewares/auth";
 import { createLink, deleteLink, getLink, listLinks } from "../services/link.service";
 import { validateUrl } from "../middlewares/validate";
-const linkRouter = new Hono();
+import type { AppEnv } from "../types";
+const linkRouter = new Hono<AppEnv>();
 
 linkRouter.use("*", authMiddleware);
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { api } from "../lib/urlz";
-import { AuthMode, User } from "../types";
+import type { AuthMode, User } from "../types";
 import { Brand } from "./Brand";
 
 export function AuthScreen({

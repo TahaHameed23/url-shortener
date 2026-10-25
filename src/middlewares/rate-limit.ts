@@ -1,4 +1,5 @@
 import { createMiddleware } from "hono/factory";
+import type { AppEnv } from "../types";
 
 const WINDOW_SECONDS = 15 * 60;
 const AUTH_LIMITS: Record<string, number> = {
@@ -15,7 +16,7 @@ function clientAddress(request: Request): string {
     );
 }
 
-export const authRateLimitMiddleware = createMiddleware(async (c, next) => {
+export const authRateLimitMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     const limit = AUTH_LIMITS[new URL(c.req.url).pathname];
 
     if (!limit) {

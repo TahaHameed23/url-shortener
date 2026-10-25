@@ -60,6 +60,24 @@ test("returns 400 for malformed registration JSON with a request ID", async () =
     assert.deepEqual(await response.json(), { error: "Invalid JSON body" });
 });
 
+test("rejects invalid registration fields with a 400 response", async () => {
+    const response = await app.fetch(
+        registerRequest(
+            JSON.stringify({
+                name: " ",
+                email: "not-an-email",
+                password: "short",
+            }),
+        ),
+        testBindings(),
+    );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+        error: "Invalid email or password",
+    });
+});
+
 test("returns 409 for a concurrent unique email conflict", async () => {
     const response = await app.fetch(
         registerRequest(

@@ -1,11 +1,6 @@
-export type CachedLinkRecord = {
-    id: string;
-    slug: string;
-    destinationUrl: string;
-    createdBy?: string;
-    clicks: number;
-    createdAt: string;
-};
+import type { StoredLink } from "../d1/db";
+
+export type CachedLinkRecord = StoredLink;
 
 const LINK_BY_SLUG_PREFIX = "link:v2:slug:";
 const LINK_BY_LONG_URL_PREFIX = "link:v2:long:";

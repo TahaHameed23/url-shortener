@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { authMiddleware } from "../middlewares/auth";
 import {
     createTokenPair,
@@ -17,25 +18,11 @@ import {
 } from "../services/auth-cookie";
 import { secureAuthMiddleware } from "../middlewares/secure-auth";
 import { logServerError } from "../services/error-logging";
+import { loginRequestSchema, registerRequestSchema } from "../schemas/auth";
+import { parseJsonBody } from "../middlewares/validate";
+import type { AppEnv } from "../types";
 
-const authRouter = new Hono<{ Bindings: CloudflareBindings }>();
-
-async function readJsonBody(
-    c: any,
-): Promise<
-    | { body: Record<string, unknown> }
-    | { error: "Invalid JSON body" }
-> {
-    try {
-        const body: unknown = await c.req.json();
-        if (body === null || typeof body !== "object" || Array.isArray(body)) {
-            return { error: "Invalid JSON body" };
-        }
-        return { body: body as Record<string, unknown> };
-    } catch {
-        return { error: "Invalid JSON body" };
-    }
-}
+const authRouter = new Hono<AppEnv>();
 
 function isDuplicateEmailError(error: unknown): boolean {
     return (
@@ -44,7 +31,11 @@ function isDuplicateEmailError(error: unknown): boolean {
     );
 }
 
-function logAuthFailure(c: any, event: string, error: unknown): void {
+function logAuthFailure(
+    c: Context<AppEnv>,
+    event: string,
+    error: unknown,
+): void {
     logServerError(event, error, {
         requestId: c.res.headers.get("X-Request-ID") ?? undefined,
         method: c.req.method,
@@ -57,7 +48,7 @@ authRouter.use("/auth/login", secureAuthMiddleware);
 authRouter.use("/auth/refresh", secureAuthMiddleware);
 authRouter.use("/auth/logout", secureAuthMiddleware);
 
-authRouter.post("/auth/register", async (c: any) => {
+authRouter.post("/auth/register", async (c) => {
     const db = c.env.DB;
     const secret = c.env.AUTH_SECRET;
 
@@ -71,34 +62,21 @@ authRouter.post("/auth/register", async (c: any) => {
 
     let createdUserId: string | undefined;
     try {
-        const parsed = await readJsonBody(c);
-        if ("error" in parsed) {
-            return c.json({ error: parsed.error }, 400);
+        const parsed = await parseJsonBody(c, registerRequestSchema);
+        if (!parsed.success) {
+            return c.json(
+                {
+                    error:
+                        parsed.reason === "invalid_json"
+                            ? "Invalid JSON body"
+                            : "Invalid email or password",
+                },
+                400,
+            );
         }
-        const body = parsed.body;
+        const { name, email, password } = parsed.data;
 
-        if (
-            typeof body.name !== "string" ||
-            typeof body.email !== "string" ||
-            typeof body.password !== "string"
-        ) {
-            return c.json({ error: "Invalid email or password" }, 400);
-        }
-
-        const name = body.name.trim();
-        const email = body.email.trim().toLowerCase();
-
-        if (
-            !name ||
-            name.length > 100 ||
-            !email ||
-            !email.includes("@") ||
-            body.password.length < 8
-        ) {
-            return c.json({ error: "Invalid email or password" }, 400);
-        }
-
-        const { user } = await registerUser(db, name, email, body.password);
+        const { user } = await registerUser(db, name, email, password);
         createdUserId = user.id;
         const tokens = await createTokenPair(db, user, secret);
         for (const cookie of createAuthCookies(
@@ -132,7 +110,7 @@ authRouter.post("/auth/register", async (c: any) => {
     }
 });
 
-authRouter.post("/auth/login", async (c: any) => {
+authRouter.post("/auth/login", async (c) => {
     const db = c.env.DB;
     const secret = c.env.AUTH_SECRET;
 
@@ -145,20 +123,20 @@ authRouter.post("/auth/login", async (c: any) => {
     }
 
     try {
-        const parsed = await readJsonBody(c);
-        if ("error" in parsed) {
-            return c.json({ error: parsed.error }, 400);
+        const parsed = await parseJsonBody(c, loginRequestSchema);
+        if (!parsed.success) {
+            return c.json(
+                {
+                    error:
+                        parsed.reason === "invalid_json"
+                            ? "Invalid JSON body"
+                            : "Invalid email or password",
+                },
+                400,
+            );
         }
-        const body = parsed.body;
 
-        if (
-            typeof body.email !== "string" ||
-            typeof body.password !== "string"
-        ) {
-            return c.json({ error: "Invalid email or password" }, 400);
-        }
-
-        const user = await loginUser(db, body.email, body.password);
+        const user = await loginUser(db, parsed.data.email, parsed.data.password);
 
         if (!user) {
             return c.json({ error: "Invalid credentials" }, 401);
@@ -180,7 +158,7 @@ authRouter.post("/auth/login", async (c: any) => {
     }
 });
 
-authRouter.post("/auth/logout", async (c: any) => {
+authRouter.post("/auth/logout", async (c) => {
     const refreshToken = getCookie(c.req.raw, REFRESH_COOKIE_NAME);
     if (refreshToken && c.env.DB) {
         await revokeRefreshToken(c.env.DB, refreshToken);
@@ -191,7 +169,7 @@ authRouter.post("/auth/logout", async (c: any) => {
     return c.json({ ok: true }, 200);
 });
 
-authRouter.post("/auth/refresh", async (c: any) => {
+authRouter.post("/auth/refresh", async (c) => {
     const secret = c.env.AUTH_SECRET;
     const db = c.env.DB;
     const refreshToken = getCookie(c.req.raw, REFRESH_COOKIE_NAME);
@@ -215,10 +193,8 @@ authRouter.post("/auth/refresh", async (c: any) => {
     return c.json({ ok: true }, 200);
 });
 
-authRouter.get("/auth/me", authMiddleware, async (c: any) => {
-    const auth = c.get("auth") as
-        | { userId?: string; email?: string }
-        | undefined;
+authRouter.get("/auth/me", authMiddleware, async (c) => {
+    const auth = c.get("auth");
     const db = c.env.DB;
 
     if (!auth?.userId || !db) {

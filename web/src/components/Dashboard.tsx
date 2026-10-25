@@ -10,7 +10,7 @@ import {
     Search,
 } from "lucide-react";
 import { api, shortUrl } from "../lib/urlz";
-import { LinkRecord, User } from "../types";
+import type { LinkRecord, User } from "../types";
 
 export function Dashboard({
     user,

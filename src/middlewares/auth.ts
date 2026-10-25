@@ -1,8 +1,9 @@
 import { createMiddleware } from "hono/factory";
 import { verifyAuthToken } from "../services/auth.service";
 import { ACCESS_COOKIE_NAME, getCookie } from "../services/auth-cookie";
+import type { AppEnv } from "../types";
 
-export const authMiddleware = createMiddleware(async (c, next) => {
+export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     const path = new URL(c.req.url).pathname;
 
     if (

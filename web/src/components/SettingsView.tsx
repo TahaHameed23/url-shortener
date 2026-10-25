@@ -1,6 +1,6 @@
 import { UserRound, X } from "lucide-react";
 import React from "react";
-import { User } from "../types";
+import type { User } from "../types";
 import { Detail } from "./Brand";
 
 export function SettingsView({ user }: { user: User }) {

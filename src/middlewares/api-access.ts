@@ -1,4 +1,5 @@
 import { createMiddleware } from "hono/factory";
+import type { AppEnv } from "../types";
 
 function sameOrigin(requestUrl: string, value: string): boolean {
     try {
@@ -8,7 +9,7 @@ function sameOrigin(requestUrl: string, value: string): boolean {
     }
 }
 
-export const apiAccessMiddleware = createMiddleware(async (c, next) => {
+export const apiAccessMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     const requestUrl = c.req.url;
     const origin = c.req.header("origin");
     const referer = c.req.header("referer");

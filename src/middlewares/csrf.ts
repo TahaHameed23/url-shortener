@@ -1,4 +1,5 @@
 import { createMiddleware } from "hono/factory";
+import type { AppEnv } from "../types";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -10,7 +11,7 @@ function sameOrigin(requestUrl: string, value: string): boolean {
     }
 }
 
-export const csrfMiddleware = createMiddleware(async (c, next) => {
+export const csrfMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     if (SAFE_METHODS.has(c.req.method)) {
         await next();
         return;

@@ -1,6 +1,6 @@
 import { BarChart3, FileSearch, LogOut, PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import React from "react";
-import { View } from "../types";
+import type { View } from "../types";
 import { Brand } from "./Brand";
 
 export function Sidebar({

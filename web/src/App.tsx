@@ -6,7 +6,7 @@ import { Inspect } from "./components/Inspect";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
 import { api } from "./lib/urlz";
-import { AuthMode, LinkListResponse, LinkRecord, User, View } from "./types";
+import type { AuthMode, LinkListResponse, LinkRecord, User, View } from "./types";
 
 function LoadingScreen() {
     return (
