@@ -1,6 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
     --font-sans: "DM Sans", sans-serif;
     --font-display: "Space Grotesk", sans-serif;
@@ -10,6 +12,11 @@
     :root {
         font-synthesis: none;
         text-rendering: optimizeLegibility;
+        color-scheme: light;
+    }
+
+    :root.dark {
+        color-scheme: dark;
     }
 
     * {
@@ -21,6 +28,10 @@
         min-height: 100vh;
         margin: 0;
         background: #f7f8fa;
+    }
+
+    :root.dark body {
+        background: #10151e;
     }
 
     button,
@@ -42,6 +53,11 @@
     input:focus-visible {
         outline: 3px solid rgba(40, 120, 238, 0.28);
         outline-offset: 2px;
+    }
+
+    body,
+    body * {
+        @apply transition-colors duration-150 ease-out;
     }
 }
 
