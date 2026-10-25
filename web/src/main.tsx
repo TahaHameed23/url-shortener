@@ -6,11 +6,17 @@ import "./styles.css";
 
 installClientErrorLogging();
 
+if (import.meta.env.PROD && "serviceWorker" in navigator && window.isSecureContext) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js").catch((error: unknown) => {
+            console.error("Unable to register the URLZ offline worker.", error);
+        });
+    });
+}
+
 createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
         <App />
     </React.StrictMode>,
 );
-
-
 
