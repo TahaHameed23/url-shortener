@@ -1,9 +1,13 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
     ArrowUpRight,
     BarChart3,
     Check,
+    CheckCircle2,
+    CircleAlert,
     Clipboard,
+    X,
     Trash2,
     FileSearch,
     Link2,
@@ -11,6 +15,11 @@ import {
 } from "lucide-react";
 import { api, shortUrl } from "../lib/urlz";
 import type { LinkRecord, User } from "../types";
+
+type Notice = {
+    message: string;
+    type: "success" | "error";
+};
 
 export function Dashboard({
     user,
@@ -35,6 +44,13 @@ export function Dashboard({
     const [result, setResult] = useState<LinkRecord | null>(null);
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
+    const [notice, setNotice] = useState<Notice | null>(null);
+
+    useEffect(() => {
+        if (!notice) return;
+        const timeout = window.setTimeout(() => setNotice(null), 4000);
+        return () => window.clearTimeout(timeout);
+    }, [notice]);
 
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -50,8 +66,10 @@ export function Dashboard({
             setResult(link);
             onAddLink(link);
             setUrl("");
+            setNotice({ message: "Your short link was created.", type: "success" });
         } catch (err) {
             setError(err instanceof Error ? err.message : "Unable to shorten that URL.");
+            setNotice({ message: err instanceof Error ? err.message : "Unable to create the short link.", type: "error" });
         } finally {
             setBusy(false);
         }
@@ -65,11 +83,12 @@ export function Dashboard({
 
     return (
         <div className="animate-[fade-in_0.35s_ease_both]">
+            {notice && <ToastNotice notice={notice} onDismiss={() => setNotice(null)} />}
             <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <p className="mb-2 text-xs font-bold uppercase tracking-[.12em] text-[#1769e0]">Overview</p>
                     <h1 className="font-display text-3xl font-bold tracking-[-.05em] text-[#172033] dark:text-[#f1f5fb]">
-                        Good morning, {user.name || user.email.split("@")[0]}
+                        Hey there, {user.name || user.email.split("@")[0]}
                     </h1>
                     <p className="mt-2 max-w-prose text-sm leading-6 text-[#667085] dark:text-[#a3afc2]">
                         Create, organize, and monitor every short link from one focused workspace.
@@ -118,11 +137,11 @@ export function Dashboard({
                         <p className="mt-1 text-sm text-[#667085] dark:text-[#a3afc2]">A quick view of your link performance.</p>
                     </div>
                 </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-                <Metric icon={<Link2 size={18} />} label="Total links" value={String(totalLinks)} trend="All time" />
-                <Metric icon={<BarChart3 size={18} />} label="Total clicks" value={totalClicks.toLocaleString()} trend="Across your links" />
-                <Metric icon={<ArrowUpRight size={18} />} label="Avg. clicks per link" value={averageClicks.toLocaleString()} trend="Based on current links" />
-            </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                    <Metric icon={<Link2 size={18} />} label="Total links" value={String(totalLinks)} trend="All time" />
+                    <Metric icon={<BarChart3 size={18} />} label="Total clicks" value={totalClicks.toLocaleString()} trend="Across your links" />
+                    <Metric icon={<ArrowUpRight size={18} />} label="Avg. clicks per link" value={averageClicks.toLocaleString()} trend="Based on current links" />
+                </div>
             </section>
 
             <RecentLinks
@@ -130,8 +149,41 @@ export function Dashboard({
                 loading={loading}
                 loadError={loadError}
                 onRemove={onRemoveLink}
+                onNotify={(nextNotice) => setNotice(nextNotice)}
             />
         </div>
+    );
+}
+
+function ToastNotice({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
+    const success = notice.type === "success";
+    const Icon = success ? CheckCircle2 : CircleAlert;
+
+    return createPortal(
+        <div
+            className={`fixed right-4 top-4 z-[110] flex w-[min(420px,calc(100vw-32px))] items-start gap-3 rounded-xl border bg-white p-4 shadow-[0_16px_40px_rgba(23,32,51,0.16)] transition-[opacity,transform] duration-200 ease-out dark:bg-[#171e29] ${success
+                ? "border-[#cde6d7] dark:border-[#295342]"
+                : "border-[#f2c7c7] dark:border-[#62353d]"
+                }`}
+            role={success ? "status" : "alert"}
+            aria-live={success ? "polite" : "assertive"}
+        >
+            <Icon
+                size={19}
+                className={`mt-0.5 shrink-0 ${success ? "text-[#25804c] dark:text-[#75d59d]" : "text-[#c92a2a] dark:text-[#ff9da8]"}`}
+                aria-hidden="true"
+            />
+            <p className="min-w-0 flex-1 text-sm font-medium leading-5 text-[#344054] dark:text-[#d2dae6]">{notice.message}</p>
+            <button
+                type="button"
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[#667085] transition-colors hover:bg-[#f2f4f7] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2 dark:text-[#a3afc2] dark:hover:bg-[#253145]"
+                onClick={onDismiss}
+                aria-label="Dismiss notification"
+            >
+                <X size={15} />
+            </button>
+        </div>,
+        document.body,
     );
 }
 
@@ -181,32 +233,69 @@ function RecentLinks({
     loading,
     loadError,
     onRemove,
+    onNotify,
 }: {
     links: LinkRecord[];
     loading: boolean;
     loadError: string;
     onRemove: (slug: string) => void;
+    onNotify: (notice: Notice) => void;
 }) {
     const [query, setQuery] = useState("");
+    const [confirmLink, setConfirmLink] = useState<LinkRecord | null>(null);
+    const [deleting, setDeleting] = useState(false);
+    const cancelDeleteRef = useRef<HTMLButtonElement>(null);
     const filtered = useMemo(
         () => links.filter((link) => `${link.slug} ${link.destinationUrl}`.toLowerCase().includes(query.toLowerCase())),
         [links, query],
     );
 
-    const handleDelete = useCallback(async (link: LinkRecord) => {
-        if (!window.confirm("Delete this short link?")) {
-            return;
-        }
+    useEffect(() => {
+        if (!confirmLink) return;
+        cancelDeleteRef.current?.focus();
 
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape" && !deleting) {
+                setConfirmLink(null);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [confirmLink, deleting]);
+
+    useEffect(() => {
+        if (!confirmLink) return;
+        const root = document.documentElement;
+        const previousRootOverflow = root.style.overflow;
+        const previousScrollbarGutter = root.style.scrollbarGutter;
+        root.style.overflow = "clip";
+        root.style.scrollbarGutter = "stable";
+
+        return () => {
+            root.style.overflow = previousRootOverflow;
+            root.style.scrollbarGutter = previousScrollbarGutter;
+        };
+    }, [confirmLink]);
+
+    const handleDelete = useCallback(async () => {
+        if (!confirmLink) return;
+        setDeleting(true);
         try {
-            await api(`/api/v1/links/${encodeURIComponent(link.slug)}`, {
+            await api(`/api/v1/links/${encodeURIComponent(confirmLink.slug)}`, {
                 method: "DELETE",
             });
-            onRemove(link.slug);
-        } catch {
-            window.alert("Unable to delete this link.");
+            onRemove(confirmLink.slug);
+            onNotify({ message: "Short link deleted.", type: "success" });
+            setConfirmLink(null);
+        } catch (error) {
+            onNotify({
+                message: error instanceof Error ? error.message : "Unable to delete this link. Please try again.",
+                type: "error",
+            });
+        } finally {
+            setDeleting(false);
         }
-    }, [onRemove]);
+    }, [confirmLink, onNotify, onRemove]);
 
     return (
         <section className="mt-7 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white shadow-[0_14px_36px_rgba(31,41,55,0.055)] dark:border-[#293445] dark:bg-[#171e29] dark:shadow-[0_14px_36px_rgba(0,0,0,0.14)]">
@@ -243,7 +332,7 @@ function RecentLinks({
                 <div className="px-6 py-12 text-center text-sm text-[#c92a2a] dark:text-[#ff9da8]">{loadError}</div>
             ) : filtered.length ? (
                 filtered.map((link, index) => (
-                    <div className="grid grid-cols-[minmax(190px,1fr)_minmax(230px,1.7fr)_90px_115px_72px] items-center gap-4 border-t border-[#edf0f4] px-5 py-[15px] text-[13px] transition-colors hover:bg-[#fafbfc] max-[900px]:grid-cols-[minmax(150px,1fr)_minmax(180px,1.4fr)_70px_90px] max-[900px]:[&>:last-child]:hidden max-[380px]:grid-cols-[minmax(145px,1fr)_70px_70px] max-[380px]:gap-2 max-[380px]:px-3.5 max-[380px]:[&>:nth-child(2)]:hidden max-[380px]:[&>:nth-child(4)]:hidden dark:border-[#293445] dark:hover:bg-[#1d2735]" key={`${link.id}-${index}`}>
+                    <div className="grid grid-cols-[minmax(190px,1fr)_minmax(230px,1.7fr)_90px_115px_72px] items-center gap-4 border-t border-[#edf0f4] px-5 py-[15px] text-[13px] transition-colors hover:bg-[#fafbfc] max-[900px]:grid-cols-[minmax(130px,1fr)_minmax(120px,1.2fr)_55px_76px_32px] max-[700px]:grid-cols-[minmax(0,1fr)_56px_32px] max-[700px]:gap-2 max-[700px]:px-3.5 max-[700px]:[&>:nth-child(2)]:hidden max-[700px]:[&>:nth-child(4)]:hidden dark:border-[#293445] dark:hover:bg-[#1d2735]" key={`${link.id}-${index}`}>
                         <a className="truncate font-semibold text-[#1769e0] hover:underline" href={shortUrl(link)} target="_blank" rel="noreferrer">
                             {shortUrl(link).replace(/^https?:\/\//, "")}
                         </a>
@@ -251,9 +340,10 @@ function RecentLinks({
                         <span className="text-[#344054] dark:text-[#d2dae6]">{link.clicks}</span>
                         <span className="text-[#667085] dark:text-[#a3afc2]">{formatDate(link.createdAt)}</span>
                         <button
+                            type="button"
                             className="grid h-8 w-8 place-items-center rounded-md text-[#98a2b3] transition-colors hover:bg-[#fff1f1] hover:text-[#c92a2a] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2 dark:text-[#8492a7] dark:hover:bg-[#3a222a] dark:hover:text-[#ff9da8]"
                             aria-label={`Delete ${link.slug}`}
-                            onClick={() => handleDelete(link)}
+                            onClick={() => setConfirmLink(link)}
                         >
                             <Trash2 size={16} />
                         </button>
@@ -266,6 +356,47 @@ function RecentLinks({
             <div className="border-t border-[#edf0f4] px-5 py-3 text-xs text-[#98a2b3] dark:border-[#293445] dark:text-[#8492a7]">
                 Showing {filtered.length} of {links.length} links
             </div>
+            {confirmLink && (
+                createPortal(<div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#172033]/35 p-4">
+                    <section
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-link-title"
+                        aria-describedby="delete-link-description"
+                        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-[#e5e7eb] bg-white p-6 shadow-[0_24px_70px_rgba(23,32,51,0.24)] dark:border-[#354258] dark:bg-[#171e29]"
+                    >
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff1f1] text-[#c92a2a] dark:bg-[#3a222a] dark:text-[#ff9da8]">
+                            <Trash2 size={20} aria-hidden="true" />
+                        </div>
+                        <h2 id="delete-link-title" className="mt-4 font-display text-lg font-bold text-[#172033] dark:text-[#f1f5fb]">
+                            Delete this short link?
+                        </h2>
+                        <p id="delete-link-description" className="mt-2 break-all text-sm leading-6 text-[#667085] dark:text-[#a3afc2]">
+                            The link <span className="font-semibold text-[#344054] dark:text-[#d2dae6]">{shortUrl(confirmLink)}</span> will stop working. <br />This action cannot be undone.
+                        </p>
+                        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                            <button
+                                ref={cancelDeleteRef}
+                                type="button"
+                                className="rounded-lg border border-[#dfe3ea] bg-white px-4 py-2.5 text-sm font-semibold text-[#344054] transition-colors hover:bg-[#f9fafb] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2 dark:border-[#354258] dark:bg-[#1b2432] dark:text-[#d2dae6] dark:hover:bg-[#253145]"
+                                onClick={() => setConfirmLink(null)}
+                                disabled={deleting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#c92a2a] bg-[#c92a2a] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#ae2222] focus-visible:outline-3 focus-visible:outline-[#c92a2a]/30 focus-visible:outline-offset-2 disabled:cursor-wait"
+                                onClick={handleDelete}
+                                disabled={deleting}
+                            >
+                                <Trash2 size={15} aria-hidden="true" />
+                                {deleting ? "Deleting..." : "Delete link"}
+                            </button>
+                        </div>
+                    </section>
+                </div>, document.body)
+            )}
         </section>
     );
 }
@@ -275,6 +406,6 @@ function formatDate(value: string): string {
     return Number.isNaN(date.getTime())
         ? "Unknown"
         : new Intl.DateTimeFormat(undefined, {
-              dateStyle: "medium",
-          }).format(date);
+            dateStyle: "medium",
+        }).format(date);
 }
