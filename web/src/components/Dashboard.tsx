@@ -1,25 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import React, { useCallback, useMemo, useState } from "react";
 import {
     ArrowUpRight,
     BarChart3,
     Check,
-    CheckCircle2,
-    CircleAlert,
     Clipboard,
-    X,
     Trash2,
     FileSearch,
     Link2,
     Search,
+    LogOut,
 } from "lucide-react";
 import { api, shortUrl } from "../lib/urlz";
 import type { LinkRecord, User } from "../types";
-
-type Notice = {
-    message: string;
-    type: "success" | "error";
-};
+import { ConfirmDialog } from "./ConfirmDialog";
+import type { ToastNoticeData } from "./FeedbackToast";
 
 export function Dashboard({
     user,
@@ -30,6 +24,7 @@ export function Dashboard({
     onAddLink,
     onRemoveLink,
     onInspect,
+    onNotify,
 }: {
     user: User;
     links: LinkRecord[];
@@ -39,19 +34,12 @@ export function Dashboard({
     onAddLink: (link: LinkRecord) => void;
     onRemoveLink: (slug: string) => void;
     onInspect: () => void;
+    onNotify: (notice: ToastNoticeData) => void;
 }) {
     const [url, setUrl] = useState("");
     const [result, setResult] = useState<LinkRecord | null>(null);
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
-    const [notice, setNotice] = useState<Notice | null>(null);
-
-    useEffect(() => {
-        if (!notice) return;
-        const timeout = window.setTimeout(() => setNotice(null), 4000);
-        return () => window.clearTimeout(timeout);
-    }, [notice]);
-
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
         setError("");
@@ -66,10 +54,10 @@ export function Dashboard({
             setResult(link);
             onAddLink(link);
             setUrl("");
-            setNotice({ message: "Your short link was created.", type: "success" });
+            onNotify({ message: "Your short link was created.", type: "success" });
         } catch (err) {
             setError(err instanceof Error ? err.message : "Unable to shorten that URL.");
-            setNotice({ message: err instanceof Error ? err.message : "Unable to create the short link.", type: "error" });
+            onNotify({ message: err instanceof Error ? err.message : "Unable to create the short link.", type: "error" });
         } finally {
             setBusy(false);
         }
@@ -83,7 +71,6 @@ export function Dashboard({
 
     return (
         <div className="animate-[fade-in_0.35s_ease_both]">
-            {notice && <ToastNotice notice={notice} onDismiss={() => setNotice(null)} />}
             <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <p className="mb-2 text-xs font-bold uppercase tracking-[.12em] text-[#1769e0]">Overview</p>
@@ -149,41 +136,9 @@ export function Dashboard({
                 loading={loading}
                 loadError={loadError}
                 onRemove={onRemoveLink}
-                onNotify={(nextNotice) => setNotice(nextNotice)}
+                onNotify={onNotify}
             />
         </div>
-    );
-}
-
-function ToastNotice({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
-    const success = notice.type === "success";
-    const Icon = success ? CheckCircle2 : CircleAlert;
-
-    return createPortal(
-        <div
-            className={`fixed right-4 top-4 z-[110] flex w-[min(420px,calc(100vw-32px))] items-start gap-3 rounded-xl border bg-white p-4 shadow-[0_16px_40px_rgba(23,32,51,0.16)] transition-[opacity,transform] duration-200 ease-out dark:bg-[#171e29] ${success
-                ? "border-[#cde6d7] dark:border-[#295342]"
-                : "border-[#f2c7c7] dark:border-[#62353d]"
-                }`}
-            role={success ? "status" : "alert"}
-            aria-live={success ? "polite" : "assertive"}
-        >
-            <Icon
-                size={19}
-                className={`mt-0.5 shrink-0 ${success ? "text-[#25804c] dark:text-[#75d59d]" : "text-[#c92a2a] dark:text-[#ff9da8]"}`}
-                aria-hidden="true"
-            />
-            <p className="min-w-0 flex-1 text-sm font-medium leading-5 text-[#344054] dark:text-[#d2dae6]">{notice.message}</p>
-            <button
-                type="button"
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[#667085] transition-colors hover:bg-[#f2f4f7] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2 dark:text-[#a3afc2] dark:hover:bg-[#253145]"
-                onClick={onDismiss}
-                aria-label="Dismiss notification"
-            >
-                <X size={15} />
-            </button>
-        </div>,
-        document.body,
     );
 }
 
@@ -239,43 +194,15 @@ function RecentLinks({
     loading: boolean;
     loadError: string;
     onRemove: (slug: string) => void;
-    onNotify: (notice: Notice) => void;
+    onNotify: (notice: ToastNoticeData) => void;
 }) {
     const [query, setQuery] = useState("");
     const [confirmLink, setConfirmLink] = useState<LinkRecord | null>(null);
     const [deleting, setDeleting] = useState(false);
-    const cancelDeleteRef = useRef<HTMLButtonElement>(null);
     const filtered = useMemo(
         () => links.filter((link) => `${link.slug} ${link.destinationUrl}`.toLowerCase().includes(query.toLowerCase())),
         [links, query],
     );
-
-    useEffect(() => {
-        if (!confirmLink) return;
-        cancelDeleteRef.current?.focus();
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape" && !deleting) {
-                setConfirmLink(null);
-            }
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [confirmLink, deleting]);
-
-    useEffect(() => {
-        if (!confirmLink) return;
-        const root = document.documentElement;
-        const previousRootOverflow = root.style.overflow;
-        const previousScrollbarGutter = root.style.scrollbarGutter;
-        root.style.overflow = "clip";
-        root.style.scrollbarGutter = "stable";
-
-        return () => {
-            root.style.overflow = previousRootOverflow;
-            root.style.scrollbarGutter = previousScrollbarGutter;
-        };
-    }, [confirmLink]);
 
     const handleDelete = useCallback(async () => {
         if (!confirmLink) return;
@@ -357,45 +284,21 @@ function RecentLinks({
                 Showing {filtered.length} of {links.length} links
             </div>
             {confirmLink && (
-                createPortal(<div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#172033]/35 p-4">
-                    <section
-                        role="alertdialog"
-                        aria-modal="true"
-                        aria-labelledby="delete-link-title"
-                        aria-describedby="delete-link-description"
-                        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-[#e5e7eb] bg-white p-6 shadow-[0_24px_70px_rgba(23,32,51,0.24)] dark:border-[#354258] dark:bg-[#171e29]"
-                    >
-                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff1f1] text-[#c92a2a] dark:bg-[#3a222a] dark:text-[#ff9da8]">
-                            <Trash2 size={20} aria-hidden="true" />
-                        </div>
-                        <h2 id="delete-link-title" className="mt-4 font-display text-lg font-bold text-[#172033] dark:text-[#f1f5fb]">
-                            Delete this short link?
-                        </h2>
-                        <p id="delete-link-description" className="mt-2 break-all text-sm leading-6 text-[#667085] dark:text-[#a3afc2]">
-                            The link <span className="font-semibold text-[#344054] dark:text-[#d2dae6]">{shortUrl(confirmLink)}</span> will stop working. <br />This action cannot be undone.
-                        </p>
-                        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                            <button
-                                ref={cancelDeleteRef}
-                                type="button"
-                                className="rounded-lg border border-[#dfe3ea] bg-white px-4 py-2.5 text-sm font-semibold text-[#344054] transition-colors hover:bg-[#f9fafb] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2 dark:border-[#354258] dark:bg-[#1b2432] dark:text-[#d2dae6] dark:hover:bg-[#253145]"
-                                onClick={() => setConfirmLink(null)}
-                                disabled={deleting}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#c92a2a] bg-[#c92a2a] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#ae2222] focus-visible:outline-3 focus-visible:outline-[#c92a2a]/30 focus-visible:outline-offset-2 disabled:cursor-wait"
-                                onClick={handleDelete}
-                                disabled={deleting}
-                            >
-                                <Trash2 size={15} aria-hidden="true" />
-                                {deleting ? "Deleting..." : "Delete link"}
-                            </button>
-                        </div>
-                    </section>
-                </div>, document.body)
+                <ConfirmDialog
+                    title="Delete this short link?"
+                    description={
+                        <>
+                            The link <span className="font-semibold text-[#344054] dark:text-[#d2dae6]">{shortUrl(confirmLink)}</span> will stop working. This action cannot be undone.
+                        </>
+                    }
+                    confirmLabel="Delete link"
+                    busyLabel="Deleting..."
+                    busy={deleting}
+                    variant="danger"
+                    icon={Trash2}
+                    onConfirm={handleDelete}
+                    onCancel={() => setConfirmLink(null)}
+                />
             )}
         </section>
     );
