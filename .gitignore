@@ -41,5 +41,5 @@ council.yaml
 council_log.jsonl
 council_archive/
 dist-review/
-improvement.md
-review-*.md
+!readme.md
+*.md
