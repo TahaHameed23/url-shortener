@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Menu } from "lucide-react";
+import { ArrowLeft, Menu } from "lucide-react";
+import { Brand } from "./components/Brand";
 import { AuthScreen } from "./components/AuthScreen";
 import { Dashboard } from "./components/Dashboard";
 import { Inspect } from "./components/Inspect";
@@ -7,6 +8,13 @@ import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
 import { api } from "./lib/urlz";
 import type { AuthMode, LinkListResponse, LinkRecord, User, View } from "./types";
+
+const appPaths = new Set(["/", "/login", "/register", "/inspect", "/settings"]);
+
+function isAppPath(pathname: string) {
+    const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+    return appPaths.has(normalizedPath);
+}
 
 function LoadingScreen() {
     return (
@@ -16,6 +24,48 @@ function LoadingScreen() {
                 Loading your workspace
             </div>
         </div>
+    );
+}
+
+function NotFoundPage() {
+    return (
+        <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#f7f8fa] px-6 py-12 dark:bg-[#10151e]">
+            <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-[#dceaff] blur-3xl dark:bg-[#172b48]" />
+            <div className="pointer-events-none absolute -bottom-40 -right-32 h-96 w-96 rounded-full bg-[#e7e9ff] blur-3xl dark:bg-[#282341]" />
+            <section
+                className="relative w-full max-w-lg text-center"
+                aria-labelledby="not-found-title"
+            >
+                <div className="mb-12 flex justify-center">
+                    <Brand />
+                </div>
+                <p className="font-display text-[clamp(7rem,25vw,12rem)] font-bold leading-[0.8] tracking-[-0.1em] text-[#1769e0]">
+                    404
+                </p>
+                <p className="mt-8 text-xs font-bold uppercase tracking-[0.2em] text-[#1769e0]">
+                    Page not found
+                </p>
+                <h1
+                    id="not-found-title"
+                    className="mt-3 font-display text-3xl font-bold tracking-[-0.05em] text-[#172033] sm:text-4xl dark:text-[#f1f5fb]"
+                >
+                    This link has gone missing.
+                </h1>
+                <p className="mx-auto mt-4 max-w-md text-base leading-7 text-[#667085] dark:text-[#a3afc2]">
+                    The page may have moved, or the address might be mistyped. Let’s get you back to your links.
+                </p>
+                <a
+                    href="/"
+                    className="mt-8 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#1769e0] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#0f59c5] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2"
+                >
+                    <ArrowLeft size={16} aria-hidden="true" />
+                    Back to URLZ
+                </a>
+                <p className="mt-12 text-xs font-medium tracking-wide text-[#98a2b3] dark:text-[#8492a7]">
+                    URLZ <span aria-hidden="true">·</span> Simple link management
+                </p>
+            </section>
+        </main>
     );
 }
 
@@ -39,6 +89,7 @@ export default function App() {
     const [loading, setLoading] = useState(true);
     const [authMode, setAuthMode] = useState<AuthMode>("login");
     const [view, setView] = useState<View>("dashboard");
+    const [notFound, setNotFound] = useState(false);
     const [mobileNav, setMobileNav] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -96,6 +147,11 @@ export default function App() {
         const syncFromPath = () => {
             setMobileNav(false);
             const path = window.location.pathname;
+            if (!isAppPath(path)) {
+                setNotFound(true);
+                return;
+            }
+            setNotFound(false);
             const segments = path.split("/").filter(Boolean);
 
             if (!user) {
@@ -125,6 +181,7 @@ export default function App() {
 
     useEffect(() => {
         if (typeof window === "undefined") return;
+        if (!isAppPath(window.location.pathname)) return;
 
         const nextPath = !user
             ? authMode === "register"
@@ -157,6 +214,7 @@ export default function App() {
         setUser(authenticatedUser);
     };
 
+    if (notFound) return <NotFoundPage />;
     if (loading) return <LoadingScreen />;
     if (!user) return <AuthScreen mode={authMode} onModeChange={handleAuthModeChange} onAuthenticated={handleAuthenticated} darkMode={darkMode} onToggleTheme={toggleDarkMode} />;
 

@@ -11,6 +11,12 @@ import {
 } from "./services/error-logging";
 import type { AppEnv } from "./types";
 const app = new Hono<AppEnv>();
+const appPaths = new Set(["/", "/login", "/register", "/inspect", "/settings"]);
+
+function isAppPath(pathname: string) {
+    const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+    return appPaths.has(normalizedPath);
+}
 
 app.use("*", async (c, next) => {
     const requestId = crypto.randomUUID();
@@ -75,7 +81,16 @@ app.get("*", async (c) => {
     }
 
     const indexUrl = new URL("/", c.req.url);
-    return c.env.ASSETS.fetch(new Request(indexUrl, c.req.raw));
+    const indexResponse = await c.env.ASSETS.fetch(new Request(indexUrl, c.req.raw));
+    if (isAppPath(pathname) || indexResponse.status === 404) {
+        return indexResponse;
+    }
+
+    return new Response(indexResponse.body, {
+        status: 404,
+        statusText: "Not Found",
+        headers: indexResponse.headers,
+    });
 });
 
 export default app;

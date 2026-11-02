@@ -75,6 +75,16 @@ function createHarness() {
     const bindings = {
         DB: new SqliteD1Adapter(database),
         KV: kv,
+        ASSETS: {
+            async fetch(request: Request) {
+                if (new URL(request.url).pathname === "/") {
+                    return new Response('<!doctype html><div id="root"></div>', {
+                        headers: { "content-type": "text/html" },
+                    });
+                }
+                return new Response("Not Found", { status: 404 });
+            },
+        },
         AUTH_SECRET,
         KV_CACHE_ENABLED: "true",
     } as unknown as CloudflareBindings;
@@ -88,6 +98,19 @@ function createHarness() {
         },
     };
 }
+
+test("unknown app paths return the app shell with a 404 status", async () => {
+    const harness = createHarness();
+    try {
+        const response = await harness.fetch(apiRequest("/unknown-page"));
+
+        assert.equal(response.status, 404);
+        assert.match(response.headers.get("content-type") ?? "", /text\/html/);
+        assert.match(await response.text(), /id="root"/);
+    } finally {
+        harness.close();
+    }
+});
 
 function apiRequest(
     path: string,
