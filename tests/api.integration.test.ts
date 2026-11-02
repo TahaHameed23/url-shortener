@@ -120,9 +120,10 @@ function apiRequest(
         cookie?: string;
         origin?: string;
         redirect?: RequestRedirect;
+        headers?: HeadersInit;
     } = {},
 ): Request {
-    const headers = new Headers();
+    const headers = new Headers(options.headers);
     if (options.origin !== undefined) {
         headers.set("origin", options.origin);
     } else {
@@ -270,6 +271,56 @@ test("auth API supports registration, authenticated identity, login, refresh, an
     }
 });
 
+test("API rejects forged identity and access tokens outside the access cookie", async () => {
+    const harness = createHarness();
+    try {
+        const registered = await register(harness);
+        const encodedToken = encodeURIComponent(registered.accessToken);
+        const attempts: Array<{
+            name: string;
+            path: string;
+            headers?: Record<string, string>;
+            cookie?: string;
+        }> = [
+            {
+                name: "forged user ID header",
+                path: "/api/v1/links",
+                headers: { "X-User-ID": registered.user.id },
+            },
+            {
+                name: "Bearer token",
+                path: "/api/v1/links",
+                headers: { Authorization: `Bearer ${registered.accessToken}` },
+            },
+            {
+                name: "token query parameter",
+                path: `/api/v1/links?token=${encodedToken}`,
+            },
+            {
+                name: "access_token query parameter",
+                path: `/api/v1/links?access_token=${encodedToken}`,
+            },
+            {
+                name: "invalid access cookie",
+                path: "/api/v1/links",
+                cookie: `${ACCESS_COOKIE_NAME}=not-a-valid-token`,
+            },
+        ];
+
+        for (const attempt of attempts) {
+            const response = await harness.fetch(
+                apiRequest(attempt.path, {
+                    headers: attempt.headers,
+                    cookie: attempt.cookie,
+                }),
+            );
+            assert.equal(response.status, 401, attempt.name);
+        }
+    } finally {
+        harness.close();
+    }
+});
+
 test("link API validates, creates, lists, isolates, redirects, and deletes links", async () => {
     const harness = createHarness();
     try {
@@ -338,6 +389,11 @@ test("link API validates, creates, lists, isolates, redirects, and deletes links
         assert.equal(redirect.status, 302);
         assert.equal(redirect.headers.get("location"), "https://example.org/articles/1");
 
+        const repeatedRedirect = await harness.fetch(
+            apiRequest(`/l/${link.slug}`, { redirect: "manual" }),
+        );
+        assert.equal(repeatedRedirect.status, 302);
+
         const ownedLink = await harness.fetch(
             apiRequest(`/api/v1/links/${link.slug}`, {
                 cookie: ownerCookie,
@@ -346,7 +402,7 @@ test("link API validates, creates, lists, isolates, redirects, and deletes links
         assert.equal(ownedLink.status, 200);
         assert.equal(
             ((await ownedLink.json()) as LinkResponse).clicks,
-            1,
+            2,
         );
 
         const forbiddenDelete = await harness.fetch(

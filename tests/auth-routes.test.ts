@@ -49,6 +49,22 @@ function registerRequest(body: string): Request {
     });
 }
 
+test("rejects a cross-origin API request", async () => {
+    const response = await app.fetch(
+        new Request("https://urlz.example/api/v1/auth/login", {
+            method: "POST",
+            headers: {
+                origin: "https://attacker.example",
+                "content-type": "application/json",
+            },
+            body: JSON.stringify({ email: "user@example.com", password: "password" }),
+        }),
+        testBindings(),
+    );
+
+    assert.equal(response.status, 401);
+});
+
 test("returns 400 for malformed registration JSON with a request ID", async () => {
     const response = await app.fetch(
         registerRequest("{invalid"),

@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Menu } from "lucide-react";
+import { ArrowLeft, LogOut, Menu } from "lucide-react";
 import { Brand } from "./components/Brand";
 import { AuthScreen } from "./components/AuthScreen";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { Dashboard } from "./components/Dashboard";
+import { FeedbackToast } from "./components/FeedbackToast";
+import type { ToastNoticeData } from "./components/FeedbackToast";
 import { Inspect } from "./components/Inspect";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
-import { ConfirmDialog } from "./components/ConfirmDialog";
 import { api } from "./lib/urlz";
 import type { AuthMode, LinkListResponse, LinkRecord, User, View } from "./types";
 
@@ -91,9 +93,12 @@ export default function App() {
     const [authMode, setAuthMode] = useState<AuthMode>("login");
     const [view, setView] = useState<View>("dashboard");
     const [notFound, setNotFound] = useState(false);
-    const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
     const [mobileNav, setMobileNav] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+    const [logoutBusy, setLogoutBusy] = useState(false);
+    const [notice, setNotice] = useState<ToastNoticeData | null>(null);
+    const dismissNotice = useCallback(() => setNotice(null), []);
 
     useEffect(() => {
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content", darkMode ? "#10151e" : "#f7f8fa");
@@ -219,26 +224,49 @@ export default function App() {
 
     if (notFound) return <NotFoundPage />;
     if (loading) return <LoadingScreen />;
-    if (!user) return <AuthScreen mode={authMode} onModeChange={handleAuthModeChange} onAuthenticated={handleAuthenticated} darkMode={darkMode} onToggleTheme={toggleDarkMode} />;
+    if (!user) {
+        return (
+            <>
+                <AuthScreen mode={authMode} onModeChange={handleAuthModeChange} onAuthenticated={handleAuthenticated} darkMode={darkMode} onToggleTheme={toggleDarkMode} />
+                <FeedbackToast notice={notice} onDismiss={dismissNotice} />
+            </>
+        );
+    }
 
     const navigate = (next: View) => {
         setView(next);
         setMobileNav(false);
     };
 
+    const openLogoutConfirmation = () => {
+        setMobileNav(false);
+        setLogoutDialogOpen(true);
+    };
+
     const logout = async () => {
+        setLogoutBusy(true);
+        let failed = false;
         try {
             await api("/api/v1/auth/logout", { method: "POST" });
+        } catch {
+            failed = true;
         } finally {
             setLogoutDialogOpen(false);
             setMobileNav(false);
+            setLogoutBusy(false);
             setUser(null);
             setAuthMode("login");
             setView("dashboard");
         }
+        setNotice(
+            failed
+                ? { message: "You were signed out here, but the server could not confirm logout.", type: "error" }
+                : { message: "You’ve been logged out.", type: "success" },
+        );
     };
 
     return (
+        <>
         <div className={`grid min-h-screen bg-[#f7f8fa] transition-[grid-template-columns,background-color] duration-200 ease-out max-[700px]:block dark:bg-[#10151e] ${sidebarCollapsed ? "grid-cols-[76px_minmax(0,1fr)]" : "grid-cols-[236px_minmax(0,1fr)]"} max-[900px]:grid-cols-[72px_minmax(0,1fr)]`}>
             <Sidebar
                 view={view}
@@ -247,7 +275,7 @@ export default function App() {
                 onToggle={() => setSidebarCollapsed((current) => !current)}
                 onCloseMobile={() => setMobileNav(false)}
                 onNavigate={navigate}
-                onLogout={() => setLogoutDialogOpen(true)}
+                onLogout={openLogoutConfirmation}
                 darkMode={darkMode}
                 onToggleTheme={toggleDarkMode}
             />
@@ -287,21 +315,27 @@ export default function App() {
                             onAddLink={addLink}
                             onRemoveLink={removeLink}
                             onInspect={() => navigate("inspect")}
+                            onNotify={setNotice}
                         />
                     )}
                     {view === "inspect" && <Inspect />}
                     {view === "settings" && <SettingsView user={user} />}
                 </div>
             </main>
-            {logoutDialogOpen && (
-                <ConfirmDialog
-                    title="Log out of URLZ?"
-                    description="You’ll need to sign in again to manage your links."
-                    confirmLabel="Log out"
-                    onConfirm={() => void logout()}
-                    onCancel={() => setLogoutDialogOpen(false)}
-                />
-            )}
         </div>
+        <FeedbackToast notice={notice} onDismiss={dismissNotice} />
+        {logoutDialogOpen && (
+            <ConfirmDialog
+                title="Log out of URLZ?"
+                description="You’ll need to sign in again to manage your links."
+                confirmLabel="Log out"
+                busyLabel="Logging out..."
+                busy={logoutBusy}
+                icon={LogOut}
+                onConfirm={logout}
+                onCancel={() => setLogoutDialogOpen(false)}
+            />
+        )}
+        </>
     );
 }
