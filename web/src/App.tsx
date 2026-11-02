@@ -6,6 +6,7 @@ import { Dashboard } from "./components/Dashboard";
 import { Inspect } from "./components/Inspect";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { api } from "./lib/urlz";
 import type { AuthMode, LinkListResponse, LinkRecord, User, View } from "./types";
 
@@ -90,6 +91,7 @@ export default function App() {
     const [authMode, setAuthMode] = useState<AuthMode>("login");
     const [view, setView] = useState<View>("dashboard");
     const [notFound, setNotFound] = useState(false);
+    const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
     const [mobileNav, setMobileNav] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -210,6 +212,7 @@ export default function App() {
     }, []);
 
     const handleAuthenticated = (authenticatedUser: User) => {
+        setLogoutDialogOpen(false);
         setMobileNav(false);
         setUser(authenticatedUser);
     };
@@ -227,6 +230,7 @@ export default function App() {
         try {
             await api("/api/v1/auth/logout", { method: "POST" });
         } finally {
+            setLogoutDialogOpen(false);
             setMobileNav(false);
             setUser(null);
             setAuthMode("login");
@@ -243,7 +247,7 @@ export default function App() {
                 onToggle={() => setSidebarCollapsed((current) => !current)}
                 onCloseMobile={() => setMobileNav(false)}
                 onNavigate={navigate}
-                onLogout={logout}
+                onLogout={() => setLogoutDialogOpen(true)}
                 darkMode={darkMode}
                 onToggleTheme={toggleDarkMode}
             />
@@ -289,6 +293,15 @@ export default function App() {
                     {view === "settings" && <SettingsView user={user} />}
                 </div>
             </main>
+            {logoutDialogOpen && (
+                <ConfirmDialog
+                    title="Log out of URLZ?"
+                    description="You’ll need to sign in again to manage your links."
+                    confirmLabel="Log out"
+                    onConfirm={() => void logout()}
+                    onCancel={() => setLogoutDialogOpen(false)}
+                />
+            )}
         </div>
     );
 }
