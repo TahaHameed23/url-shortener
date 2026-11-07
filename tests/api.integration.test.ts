@@ -252,6 +252,8 @@ test("link API validates, creates, lists, isolates, redirects, and deletes links
     try {
         const { accessToken } = await register(harness);
         const ownerCookie = `${ACCESS_COOKIE_NAME}=${accessToken}`;
+        const destinationUrl =
+            "https://example.org/articles/1?source=toolbar&campaign=summer#section";
 
         const invalidUrl = await harness.fetch(
             apiRequest("/api/v1/links", {
@@ -272,13 +274,13 @@ test("link API validates, creates, lists, isolates, redirects, and deletes links
                 method: "POST",
                 cookie: ownerCookie,
                 body: JSON.stringify({
-                    destinationUrl: "https://example.org/articles/1",
+                    destinationUrl,
                 }),
             }),
         );
         assert.equal(created.status, 201);
         const link = (await created.json()) as LinkResponse;
-        assert.equal(link.destinationUrl, "https://example.org/articles/1");
+        assert.equal(link.destinationUrl, destinationUrl);
         assert.equal(link.clicks, 0);
         assert.equal("createdBy" in link, false);
         assert.ok(link.slug);
@@ -295,6 +297,7 @@ test("link API validates, creates, lists, isolates, redirects, and deletes links
         assert.equal(listed.total, 1);
         assert.equal(listed.links.length, 1);
         assert.equal(listed.links[0].slug, link.slug);
+        assert.equal(listed.links[0].destinationUrl, destinationUrl);
         assert.equal(listed.nextCursor, null);
 
         const otherUserToken = createAuthToken(
@@ -313,7 +316,7 @@ test("link API validates, creates, lists, isolates, redirects, and deletes links
             apiRequest(`/l/${link.slug}`, { redirect: "manual" }),
         );
         assert.equal(redirect.status, 302);
-        assert.equal(redirect.headers.get("location"), "https://example.org/articles/1");
+        assert.equal(redirect.headers.get("location"), destinationUrl);
 
         const ownedLink = await harness.fetch(
             apiRequest(`/api/v1/links/${link.slug}`, {
