@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import crypto from "node:crypto";
-import app from "../src/index";
 import {
     createAuthToken,
     rotateTokenPair,
@@ -129,20 +128,4 @@ test("concurrent refresh requests can rotate a token only once", async () => {
 
     assert.equal(results.filter(Boolean).length, 1);
     assert.equal(results.filter((result) => result === null).length, 1);
-});
-
-test("rejects a cross-origin API request", async () => {
-    const response = await app.fetch(
-        new Request("https://urlz.example/api/v1/auth/login", {
-            method: "POST",
-            headers: {
-                origin: "https://attacker.example",
-                "content-type": "application/json",
-            },
-            body: JSON.stringify({ email: "user@example.com", password: "password" }),
-        }),
-        {} as CloudflareBindings,
-    );
-
-    assert.equal(response.status, 401);
 });

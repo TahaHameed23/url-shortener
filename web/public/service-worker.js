@@ -50,6 +50,26 @@ self.addEventListener("fetch", (event) => {
         return;
     }
 
+    if (url.pathname === "/assets/main.js" || url.pathname === "/assets/index.css") {
+        event.respondWith(
+            (async () => {
+                const cache = await caches.open(CACHE_NAME);
+                try {
+                    const response = await fetch(request, { cache: "no-cache" });
+                    if (response.ok && response.type === "basic") {
+                        await cache.put(request, response.clone());
+                    }
+                    return response;
+                } catch (error) {
+                    const cachedResponse = await cache.match(request);
+                    if (cachedResponse) return cachedResponse;
+                    throw error;
+                }
+            })(),
+        );
+        return;
+    }
+
     event.respondWith(
         caches.match(request).then((cachedResponse) => {
             if (cachedResponse) return cachedResponse;
