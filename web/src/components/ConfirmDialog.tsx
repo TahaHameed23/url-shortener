@@ -32,16 +32,8 @@ export function ConfirmDialog({
     const descriptionId = "confirmation-dialog-description";
 
     useEffect(() => {
-        const previousFocus = document.activeElement;
         cancelButtonRef.current?.focus();
-        return () => {
-            if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
-                previousFocus.focus();
-            }
-        };
-    }, []);
 
-    useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape" && !busy) onCancel();
         };
@@ -86,7 +78,7 @@ export function ConfirmDialog({
                     <button
                         ref={cancelButtonRef}
                         type="button"
-                        className="rounded-lg border border-[#dfe3ea] bg-white px-4 py-2.5 text-sm font-semibold text-[#344054] transition-colors hover:bg-[#f9fafb] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2 disabled:cursor-wait dark:border-[#354258] dark:bg-[#1b2432] dark:text-[#d2dae6] dark:hover:bg-[#253145]"
+                        className="rounded-lg border border-[#dfe3ea] bg-white px-4 py-2.5 text-sm font-semibold text-[#344054] transition-colors hover:bg-[#f9fafb] focus-visible:outline-3 focus-visible:outline-[#2878ee]/30 focus-visible:outline-offset-2 dark:border-[#354258] dark:bg-[#1b2432] dark:text-[#d2dae6] dark:hover:bg-[#253145]"
                         onClick={onCancel}
                         disabled={busy}
                     >

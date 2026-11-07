@@ -3,6 +3,7 @@
     "type": "module",
     "scripts": {
         "build:web": "vite build",
+        "build:extension": "vite build --config web/extension/vite.config.ts",
         "test": "bun test",
         "typecheck": "tsc --noEmit",
         "test:unit": "bun test tests/auth-cookie.test.ts tests/auth.test.ts tests/safe-url.test.ts",
