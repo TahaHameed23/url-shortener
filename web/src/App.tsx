@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LogOut, Menu } from "lucide-react";
 import { AuthScreen } from "./components/AuthScreen";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { Dashboard } from "./components/Dashboard";
 import { FeedbackToast } from "./components/FeedbackToast";
+import { ExtensionCreateResult } from "./components/ExtensionCreateResult";
+import type { ExtensionCreateStatus } from "./components/ExtensionCreateResult";
 import type { ToastNoticeData } from "./components/FeedbackToast";
 import { Inspect } from "./components/Inspect";
 import { SettingsView } from "./components/SettingsView";
@@ -48,6 +50,39 @@ export default function App() {
     const [logoutBusy, setLogoutBusy] = useState(false);
     const [notice, setNotice] = useState<ToastNoticeData | null>(null);
     const dismissNotice = useCallback(() => setNotice(null), []);
+    const [extensionCreateStatus, setExtensionCreateStatus] = useState<ExtensionCreateStatus | null>(() => {
+        const requestedUrl = new URLSearchParams(window.location.hash.slice(1)).get("extensionCreate");
+        if (!requestedUrl) return null;
+
+        try {
+            const destination = new URL(requestedUrl);
+            if (
+                (destination.protocol === "http:" || destination.protocol === "https:") &&
+                !destination.username &&
+                !destination.password
+            ) {
+                return { state: "review", destinationUrl: destination.href };
+            }
+        } catch {
+            // Invalid extension input is shown in the workspace instead of sent to the API.
+        }
+
+        return {
+            state: "failed",
+            error: "The extension supplied an invalid URL. Return to the extension and try again.",
+        };
+    });
+    const extensionCreatedLink = useRef<LinkRecord | null>(null);
+
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        const hashParams = new URLSearchParams(url.hash.slice(1));
+        if (hashParams.has("extensionCreate")) {
+            hashParams.delete("extensionCreate");
+            url.hash = hashParams.toString();
+            window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+        }
+    }, []);
 
     useEffect(() => {
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content", darkMode ? "#10151e" : "#f7f8fa");
@@ -88,8 +123,16 @@ export default function App() {
         setLinksError("");
         api<LinkListResponse>("/api/v1/links")
             .then((result) => {
-                setLinks(result.links);
-                setTotalLinks(result.total);
+                const extensionLink = extensionCreatedLink.current;
+                const alreadyListed = extensionLink
+                    ? result.links.some((link) => link.slug === extensionLink.slug)
+                    : false;
+                setLinks(
+                    extensionLink && !alreadyListed
+                        ? [extensionLink, ...result.links]
+                        : result.links,
+                );
+                setTotalLinks(result.total + (extensionLink && !alreadyListed ? 1 : 0));
             })
             .catch((error) => {
                 setLinksError(error instanceof Error ? error.message : "Unable to load links.");
@@ -153,6 +196,40 @@ export default function App() {
         ]);
         setTotalLinks((current) => current + 1);
     }, []);
+
+    const createExtensionLink = async (destinationUrl: string) => {
+        setView("dashboard");
+        setExtensionCreateStatus({ state: "creating", destinationUrl });
+
+        try {
+            const link = await api<LinkRecord>("/api/v1/links", {
+                method: "POST",
+                body: JSON.stringify({ destinationUrl }),
+            });
+            extensionCreatedLink.current = link;
+            addLink(link);
+            setExtensionCreateStatus({
+                state: "created",
+                destinationUrl,
+                link,
+            });
+            setNotice({ message: "Your extension short link is ready to copy.", type: "success" });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Unable to create the short link.";
+            setExtensionCreateStatus({
+                state: "failed",
+                destinationUrl,
+                error: message,
+            });
+            setNotice({ message, type: "error" });
+        }
+    };
+
+    const handleExtensionCreate = () => {
+        if (extensionCreateStatus?.state === "review") {
+            void createExtensionLink(extensionCreateStatus.destinationUrl);
+        }
+    };
 
     const removeLink = useCallback((slug: string) => {
         setLinks((current) => current.filter((entry) => entry.slug !== slug));
@@ -246,6 +323,21 @@ export default function App() {
                 </header>
 
                 <div className="mx-auto w-[min(1120px,calc(100%-64px))] py-8 sm:py-10 max-[700px]:w-[min(100%-32px,620px)]">
+                    {extensionCreateStatus && (
+                        <ExtensionCreateResult
+                            status={extensionCreateStatus}
+                            onDismiss={() => setExtensionCreateStatus(null)}
+                            onCreate={handleExtensionCreate}
+                            onRetry={() => {
+                                if (
+                                    extensionCreateStatus.state === "failed" &&
+                                    extensionCreateStatus.destinationUrl
+                                ) {
+                                    void createExtensionLink(extensionCreateStatus.destinationUrl);
+                                }
+                            }}
+                        />
+                    )}
                     {view === "dashboard" && (
                         <Dashboard
                             user={user}

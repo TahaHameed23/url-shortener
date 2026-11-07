@@ -1,4 +1,4 @@
-const CACHE_NAME = "urlz-shell-v2";
+const CACHE_NAME = "urlz-shell-v4";
 const APP_SHELL = [
     "/",
     "/index.html",
@@ -6,8 +6,6 @@ const APP_SHELL = [
     "/favicon.svg",
     "/icons/icon-192.png",
     "/icons/icon-512.png",
-    "/assets/main.js",
-    "/assets/index.css",
 ];
 
 self.addEventListener("install", (event) => {

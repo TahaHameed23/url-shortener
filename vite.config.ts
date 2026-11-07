@@ -8,11 +8,5 @@ export default defineConfig({
     build: {
         outDir: "../public",
         emptyOutDir: false,
-        rollupOptions: {
-            output: {
-                entryFileNames: "assets/main.js",
-                assetFileNames: "assets/[name][extname]",
-            },
-        },
     },
 });

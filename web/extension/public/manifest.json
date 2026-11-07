@@ -1,0 +1,22 @@
+{
+    "manifest_version": 3,
+    "name": "URLZ — Quick Short Links",
+    "version": "1.0.0",
+    "description": "Create a URLZ short link from the page you’re viewing.",
+    "minimum_chrome_version": "116",
+    "permissions": ["activeTab", "storage"],
+    "action": {
+        "default_title": "Create a URLZ short link",
+        "default_popup": "popup.html",
+        "default_icon": {
+            "128": "icon-192.png"
+        }
+    },
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
+    },
+    "icons": {
+        "128": "icon-192.png"
+    }
+}
