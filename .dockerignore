@@ -1,0 +1,11 @@
+.git
+.wrangler
+node_modules
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+test-results
+dist-review
+web/extension/dist
