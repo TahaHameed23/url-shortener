@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { LogOut, Menu } from "lucide-react";
+import { ArrowLeft, LogOut, Menu } from "lucide-react";
 import { AuthScreen } from "./components/AuthScreen";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { Dashboard } from "./components/Dashboard";
@@ -7,6 +7,7 @@ import { FeedbackToast } from "./components/FeedbackToast";
 import { ExtensionCreateResult } from "./components/ExtensionCreateResult";
 import type { ExtensionCreateStatus } from "./components/ExtensionCreateResult";
 import type { ToastNoticeData } from "./components/FeedbackToast";
+import { Brand } from "./components/Brand";
 import { Inspect } from "./components/Inspect";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
